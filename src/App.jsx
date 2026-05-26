@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-
+ 
 // =============================================================
 //  UTILIDADES
 // =============================================================
 const norm = (v) => String(v ?? '').trim().toUpperCase();
-
+ 
 // Parseo numérico tolerante a comas decimales / miles (Excel en español)
 const parseNum = (v) => {
     if (v === undefined || v === null || v === '') return 0;
@@ -14,7 +14,7 @@ const parseNum = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : 0;
 };
-
+ 
 // Coordenadas: aceptan número o texto con coma decimal (ej. "4,5399684")
 const parseCoord = (v) => {
     if (typeof v === 'number') return isFinite(v) ? v : NaN;
@@ -24,13 +24,13 @@ const parseCoord = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : NaN;
 };
-
+ 
 const parseIntSafe = (v) => {
     if (typeof v === 'number') return Math.round(v);
     const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10);
     return isFinite(n) ? n : 0;
 };
-
+ 
 // Diccionario de columnas. Cubre AMBOS archivos (anterior y nuevo); como cada
 // fila solo trae uno de los alias, get() devuelve el primero presente.
 const F = {
@@ -47,7 +47,7 @@ const F = {
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
 };
-
+ 
 const get = (row, keys) => {
     if (!row) return undefined;
     for (const k of keys) {
@@ -55,7 +55,7 @@ const get = (row, keys) => {
     }
     return undefined;
 };
-
+ 
 // Fallback de color (rutas sin entrada en la paleta)
 const stringToColor = (str) => {
     if (!str) return '#94a3b8';
@@ -66,7 +66,7 @@ const stringToColor = (str) => {
     for (let i = 0; i < 3; i++) color += ('00' + ((hash >> (i * 8)) & 0xFF).toString(16)).substr(-2);
     return color;
 };
-
+ 
 // Paleta estable y bien diferenciada para N usuarios/rutas
 const buildColorMap = (routes) => {
     const sorted = [...new Set(routes.map((r) => String(r).trim()).filter(Boolean))]
@@ -81,7 +81,7 @@ const buildColorMap = (routes) => {
     });
     return map;
 };
-
+ 
 // ¿La fila cumple los filtros indicados?
 const rowMatches = (row, f) => {
     if (f.CIUDAD && norm(get(row, F.ciudad)) !== norm(f.CIUDAD)) return false;
@@ -90,9 +90,9 @@ const rowMatches = (row, f) => {
     if (f.SUPERVISOR && norm(get(row, F.supervisor)) !== norm(f.SUPERVISOR)) return false;
     return true;
 };
-
+ 
 const FIELD_KEYS = { CIUDAD: F.ciudad, REGIONAL: F.regional, RUTA: F.ruta, SUPERVISOR: F.supervisor };
-
+ 
 // Opciones de un filtro (en cascada con los demás filtros activos del MISMO lado)
 const optionsFor = (baseRows, filters, field) => {
     const others = { ...filters, [field]: '' };
@@ -103,7 +103,7 @@ const optionsFor = (baseRows, filters, field) => {
     });
     return [...set].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 };
-
+ 
 // Aplica filtros a un lado (base + desplazamiento) de forma independiente
 const filterSide = (base, desp, filters) => {
     const anyActive = Object.values(filters).some(Boolean);
@@ -113,7 +113,7 @@ const filterSide = (base, desp, filters) => {
     const d = (desp || []).filter((r) => allowed.has(norm(get(r, F.ruta))));
     return { base: b, desp: d };
 };
-
+ 
 // Resumen por ruta (idéntico para ambos lados). El desplazamiento sale de la
 // hoja dedicada si existe; si no, de la columna DESPLAZAMIENTO de la base.
 const computeRouteSummary = (baseRows, despRows, colorMap) => {
@@ -138,7 +138,7 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
         })
         .sort((a, b) => b.total - a.total);
 };
-
+ 
 // Clasifica cada hoja del Excel: lado (anterior/nuevo) y si es hoja de desplazamiento.
 // Usa el nombre y, como respaldo, las columnas (más robusto).
 const classifySheet = (name, rows) => {
@@ -147,7 +147,7 @@ const classifySheet = (name, rows) => {
     const hasKey = (s) => keys.some((k) => k.includes(s));
     const nameHasDesp = U.includes('DEZPLASAMIENTO') || U.includes('DESPLAZAMIENTO');
     const isDespSheet = nameHasDesp && (hasKey('TIEMPO') || keys.length <= 6);
-
+ 
     let side = null;
     if (U.includes('NUEV') || U.includes('ACTUAL') || U.includes('OPTIM')) side = 'nuevo';
     else if (U.includes('VIEJ') || U.includes('ANTERIOR') || U.includes('ANTES')) side = 'anterior';
@@ -157,14 +157,14 @@ const classifySheet = (name, rows) => {
     }
     return { side, isDespSheet };
 };
-
+ 
 // =============================================================
 //  MAPA (Leaflet) — cada lado usa SUS PROPIAS coordenadas
 // =============================================================
 const MapComponent = ({ data, colorMap }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
-
+ 
     useEffect(() => {
         if (!window.L || !mapRef.current || mapInstance.current) return;
         mapInstance.current = window.L.map(mapRef.current, { preferCanvas: true }).setView([4.6097, -74.0817], 5);
@@ -172,13 +172,13 @@ const MapComponent = ({ data, colorMap }) => {
             .addTo(mapInstance.current);
         return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
     }, []);
-
+ 
     useEffect(() => {
         if (!mapInstance.current || !window.L) return;
         mapInstance.current.eachLayer((layer) => {
             if (layer instanceof window.L.CircleMarker) mapInstance.current.removeLayer(layer);
         });
-
+ 
         const lats = [], lngs = [];
         (data || []).forEach((row) => {
             const lat = parseCoord(get(row, F.lat));
@@ -197,7 +197,7 @@ const MapComponent = ({ data, colorMap }) => {
                 )
                 .addTo(mapInstance.current);
         });
-
+ 
         if (lats.length > 0) {
             mapInstance.current.fitBounds(
                 [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
@@ -205,10 +205,10 @@ const MapComponent = ({ data, colorMap }) => {
             );
         }
     }, [data, colorMap]);
-
+ 
     return <div ref={mapRef} className="w-full h-full bg-slate-100 z-0 relative" />;
 };
-
+ 
 // =============================================================
 //  BARRA DE FILTROS (independiente por lado)
 // =============================================================
@@ -250,7 +250,28 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
         </div>
     );
 }
-
+ 
+// Logo Haleon: usa /haleon-logo.png si lo colocas en public/; si no, muestra una
+// marca propia integrada (así nunca aparece una imagen rota).
+function HaleonLogo({ h = 24 }) {
+    const [ok, setOk] = useState(true);
+    if (ok) {
+        return <img src="/haleon-logo.png" alt="Haleon" style={{ height: h }} onError={() => setOk(false)} />;
+    }
+    return (
+        <span className="inline-flex items-center gap-2" style={{ height: h }}>
+            <svg width={h} height={h} viewBox="0 0 32 32" aria-hidden="true">
+                <rect width="32" height="32" rx="7" fill="#56D400" />
+                <circle cx="11" cy="12" r="3" fill="#0f172a" />
+                <circle cx="21" cy="11" r="3" fill="#0f172a" />
+                <circle cx="16" cy="21" r="3" fill="#0f172a" />
+                <path d="M11 12 L21 11 L16 21 Z" fill="none" stroke="#0f172a" strokeWidth="1.4" strokeLinejoin="round" opacity="0.45" />
+            </svg>
+            <span className="font-black tracking-tight text-slate-900" style={{ fontSize: h * 0.72 }}>Haleon</span>
+        </span>
+    );
+}
+ 
 // =============================================================
 //  COMPONENTE PRINCIPAL
 // =============================================================
@@ -258,17 +279,16 @@ function Dashboard({ scriptsLoaded, onHome }) {
     const [status, setStatus] = useState('Esperando archivo Excel...');
     const [isLoading, setIsLoading] = useState(false);
     const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] });
-    const [autoLoaded, setAutoLoaded] = useState(false); // Bandera para evitar re-cargas múltiples
-
+    const [autoLoaded, setAutoLoaded] = useState(false); // Evita re-cargas múltiples
+ 
     const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '' };
-    const [filtersA, setFiltersA] = useState(emptyFilters);
-    const [filtersN, setFiltersN] = useState(emptyFilters);
-
-    // --- Función centralizada para procesar el Excel en crudo ---
+    const [filtersA, setFiltersA] = useState(emptyFilters); // Propuesta ANTERIOR
+    const [filtersN, setFiltersN] = useState(emptyFilters); // Propuesta NUEVA
+ 
+    // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
         const wb = window.XLSX.read(buffer, { type: 'array' });
         const raw = { bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] };
-        
         wb.SheetNames.forEach((sn) => {
             const sd = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
             if (!sd.length) return;
@@ -281,55 +301,38 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 else raw.bViejas = raw.bViejas.concat(sd);
             }
         });
-        
         setDataState(raw);
         setFiltersA(emptyFilters);
         setFiltersN(emptyFilters);
     };
-
-    // =========================================================
-    //  NUEVO: Auto-carga del Excel usando Fetch al iniciar
-    // =========================================================
+ 
+    // --- Auto-carga del Excel (desde /datos.xlsx en la carpeta public) ---
     useEffect(() => {
-        // Solo ejecuta si los scripts (XLSX) ya cargaron y no se ha auto-cargado antes
         if (!scriptsLoaded || autoLoaded) return;
-
         const fetchExcel = async () => {
             try {
                 setIsLoading(true);
                 setStatus('⏳ Auto-cargando datos...');
-
-                // 📌 AQUI PONES LA RUTA DE TU EXCEL
-                // Si pones el excel en la carpeta "public" de Vercel, la ruta es "/datos.xlsx"
-                const fileUrl = '/datos.xlsx'; 
-                
-                // Añadimos '?t=' con la hora actual para FORZAR al navegador a no usar la caché
+                // 📌 Coloca tu Excel en /public/datos.xlsx
+                const fileUrl = '/datos.xlsx';
                 const response = await fetch(fileUrl + '?t=' + new Date().getTime());
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status} (No encontrado)`);
-                }
-
+                if (!response.ok) throw new Error(`HTTP ${response.status} (No encontrado)`);
                 const arrayBuffer = await response.arrayBuffer();
                 processExcelBuffer(arrayBuffer);
-
                 setStatus('✅ ¡Dashboard Auto-Alimentado!');
                 setTimeout(() => setStatus('Datos listos'), 3000);
             } catch (err) {
                 console.warn('Fallo auto-carga:', err);
-                // Ahora mostrará el error exacto en la pantalla al lado del botón
                 setStatus(`⚠️ Falló: ${err.message}`);
             } finally {
                 setIsLoading(false);
-                setAutoLoaded(true); // Evitar re-intentos
+                setAutoLoaded(true);
             }
         };
-
         fetchExcel();
     }, [scriptsLoaded, autoLoaded]);
-
-
-    // --- lectura del Excel (Plan B / Manual) ---
+ 
+    // --- lectura del Excel (manual / Plan B) ---
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file || !window.XLSX) return;
@@ -350,7 +353,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         };
         reader.readAsArrayBuffer(file);
     };
-
+ 
     // --- paletas de color INDEPENDIENTES por lado ---
     const colorMapA = useMemo(
         () => buildColorMap((dataState.bViejas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
@@ -360,11 +363,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
         () => buildColorMap((dataState.bNuevas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
         [dataState]
     );
-
+ 
     // --- datos filtrados de forma INDEPENDIENTE ---
     const filteredA = useMemo(() => filterSide(dataState.bViejas, dataState.dViejas, filtersA), [dataState, filtersA]);
     const filteredN = useMemo(() => filterSide(dataState.bNuevas, dataState.dNuevas, filtersN), [dataState, filtersN]);
-
+ 
     // --- KPIs (sin mezclar datos entre archivos) ---
     const kpis = useMemo(() => {
         const bV = filteredA.base, dV = filteredA.desp, bN = filteredN.base, dN = filteredN.desp;
@@ -382,10 +385,10 @@ function Dashboard({ scriptsLoaded, onHome }) {
             frecNuevas: bN.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
         };
     }, [filteredA, filteredN]);
-
+ 
     const summaryViejas = useMemo(() => computeRouteSummary(filteredA.base, filteredA.desp, colorMapA), [filteredA, colorMapA]);
     const summaryNuevas = useMemo(() => computeRouteSummary(filteredN.base, filteredN.desp, colorMapN), [filteredN, colorMapN]);
-
+ 
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
         const over = s.pct > 100;
@@ -415,7 +418,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         );
     };
-
+ 
     const RouteTableHead = () => (
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
@@ -427,11 +430,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         </thead>
     );
-
+ 
     const emptyRow = (cols, msg) => (
         <tr><td colSpan={cols} className="text-center text-slate-400 py-8">{msg}</td></tr>
     );
-
+ 
     // --- directorio general (rutas nuevas, respeta el filtro del lado nuevo) ---
     const renderTableGeneral = () => {
         const rows = filteredN.base || [];
@@ -453,11 +456,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         ));
     };
-
+ 
     return (
         <div className="min-h-screen bg-slate-100 font-sans p-6 overflow-x-hidden flex justify-center">
             <div className="w-full max-w-[1800px] flex flex-col gap-6">
-
+ 
                 {/* HEADER */}
                 <header className="bg-white rounded-2xl p-6 shadow-sm flex flex-wrap gap-4 justify-between items-center border border-slate-200">
                     <div className="flex flex-col items-start">
@@ -476,10 +479,10 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </label>
                             <span className="text-xs text-slate-500 mt-2 font-medium">{status}</span>
                         </div>
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Haleon_logo.svg/1280px-Haleon_logo.svg.png" alt="Haleon" className="h-10" />
+                        <HaleonLogo h={36} />
                     </div>
                 </header>
-
+ 
                 {/* KPIS (comparan cada lado según su propio filtro) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-4">
                     <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" />
@@ -496,10 +499,10 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" />
                 </div>
-
+ 
                 {/* DOS COLUMNAS INDEPENDIENTES */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
+ 
                     {/* ===== LADO IZQUIERDO: ANTERIOR ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -531,7 +534,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </div>
                         </div>
                     </div>
-
+ 
                     {/* ===== LADO DERECHO: OPTIMIZADA ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -565,7 +568,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </div>
                     </div>
                 </div>
-
+ 
                 {/* DIRECTORIO GENERAL (rutas nuevas) */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[620px]">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-wrap gap-2 justify-between items-end">
@@ -591,12 +594,12 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </table>
                     </div>
                 </div>
-
+ 
             </div>
         </div>
     );
 }
-
+ 
 // =============================================================
 //  TARJETA KPI
 // =============================================================
@@ -608,7 +611,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         if (format === 'pct') return v.toFixed(1) + '%';
         return String(v);
     };
-
+ 
     let deltaStr = '-', isGood = false, isNeutral = true;
     if (valB > 0) {
         const delta = ((valA - valB) / valB) * 100;
@@ -616,7 +619,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         isNeutral = Math.abs(delta) < 0.5;
         isGood = inverse ? delta < 0 : delta > 0;
     }
-
+ 
     return (
         <div className="bg-white rounded-2xl p-4 xl:p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow overflow-hidden w-full">
             <h4 className="text-[10px] xl:text-xs font-bold text-slate-500 uppercase tracking-wide min-h-[2.5rem] leading-tight mb-2 line-clamp-2">{title}</h4>
@@ -633,86 +636,179 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         </div>
     );
 }
-
+ 
 // =============================================================
-//  PORTADA / PANTALLA DE BIENVENIDA
+//  PORTADA / PANTALLA DE BIENVENIDA (con mapa de Colombia)
 // =============================================================
+const PORTADA_CIUDADES = [
+    { n: 'Bogotá', lat: 4.7110, lng: -74.0721, hub: true },
+    { n: 'Medellín', lat: 6.2442, lng: -75.5812, hub: true },
+    { n: 'Cali', lat: 3.4516, lng: -76.5320, hub: true },
+    { n: 'Barranquilla', lat: 10.9685, lng: -74.7813, hub: true },
+    { n: 'Cartagena', lat: 10.3910, lng: -75.4794 },
+    { n: 'Bucaramanga', lat: 7.1193, lng: -73.1227 },
+    { n: 'Cúcuta', lat: 7.8939, lng: -72.5078 },
+    { n: 'Ibagué', lat: 4.4389, lng: -75.2322 },
+    { n: 'Armenia', lat: 4.5339, lng: -75.6811 },
+    { n: 'Pereira', lat: 4.8133, lng: -75.6961 },
+    { n: 'Manizales', lat: 5.0703, lng: -75.5138 },
+    { n: 'Santa Marta', lat: 11.2408, lng: -74.1990 },
+    { n: 'Villavicencio', lat: 4.1420, lng: -73.6266 },
+    { n: 'Neiva', lat: 2.9273, lng: -75.2819 },
+    { n: 'Pasto', lat: 1.2136, lng: -77.2811 },
+];
+// Rutas decorativas (secuencias de índices de ciudad)
+const PORTADA_RUTAS = [
+    [0, 7, 8, 9, 10, 2, 14],
+    [0, 5, 6],
+    [1, 3, 4, 11],
+    [0, 1],
+    [0, 12, 13],
+];
+ 
+function PortadaMap() {
+    const mapRef = useRef(null);
+    const mapInstance = useRef(null);
+    useEffect(() => {
+        if (!window.L || !mapRef.current || mapInstance.current) return;
+        const map = window.L.map(mapRef.current, {
+            zoomControl: false, attributionControl: false, dragging: false,
+            scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false,
+            keyboard: false, touchZoom: false, zoomSnap: 0.25,
+        });
+        mapInstance.current = map;
+        window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+ 
+        PORTADA_RUTAS.forEach((seq) => {
+            const pts = seq.map((i) => [PORTADA_CIUDADES[i].lat, PORTADA_CIUDADES[i].lng]);
+            window.L.polyline(pts, { color: '#56D400', weight: 2, opacity: 0.65, dashArray: '4 10', lineCap: 'round', className: 'pf-route', interactive: false }).addTo(map);
+        });
+ 
+        PORTADA_CIUDADES.forEach((c) => {
+            if (c.hub) {
+                window.L.circleMarker([c.lat, c.lng], { radius: 13, stroke: false, fillColor: '#56D400', fillOpacity: 0.18, className: 'pf-halo', interactive: false }).addTo(map);
+            }
+            window.L.circleMarker([c.lat, c.lng], { radius: c.hub ? 5 : 3, color: '#ffffff', weight: c.hub ? 1.5 : 1, fillColor: '#56D400', fillOpacity: 0.95, interactive: false }).addTo(map);
+            if (c.hub) {
+                window.L.marker([c.lat, c.lng], { interactive: false, icon: window.L.divIcon({ className: 'pf-label', html: `<span>${c.n}</span>`, iconSize: [0, 0] }) }).addTo(map);
+            }
+        });
+ 
+        const bounds = window.L.latLngBounds(PORTADA_CIUDADES.map((c) => [c.lat, c.lng]));
+        const fit = () => { map.invalidateSize(); map.fitBounds(bounds, { padding: [60, 60] }); };
+        fit();
+        window.addEventListener('resize', fit);
+        map._pfFit = fit;
+ 
+        return () => {
+            window.removeEventListener('resize', map._pfFit);
+            map.remove();
+            mapInstance.current = null;
+        };
+    }, []);
+    return <div ref={mapRef} className="absolute inset-0 w-full h-full" style={{ background: '#0b1120' }} />;
+}
+ 
 function Portada({ onEnter, scriptsLoaded }) {
     return (
-        <div className="min-h-screen relative overflow-hidden bg-slate-950 flex items-center justify-center p-6 font-sans">
+        <div className="min-h-screen relative overflow-hidden bg-slate-950 font-sans">
             <style>{`
                 @keyframes pf { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-                @keyframes pg { 0%,100% { opacity: .45; } 50% { opacity: .9; } }
-                @keyframes pdash { to { stroke-dashoffset: 0; } }
+                @keyframes pfRoute { to { stroke-dashoffset: -56; } }
+                @keyframes pfHalo { 0%,100% { opacity: .12; } 50% { opacity: .42; } }
+                .pf-route { animation: pfRoute 1.6s linear infinite; }
+                .pf-halo { animation: pfHalo 3s ease-in-out infinite; }
+                .pf-label span {
+                    position: absolute; transform: translate(10px, -9px);
+                    font-size: 11px; font-weight: 600; letter-spacing: .02em;
+                    color: rgba(226,232,240,0.85); white-space: nowrap;
+                    text-shadow: 0 1px 4px rgba(0,0,0,0.95); pointer-events: none;
+                }
+                .leaflet-container { background: #0b1120 !important; }
             `}</style>
-
-            {/* atmósfera */}
-            <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 60% at 50% 0%, rgba(86,212,0,0.18), transparent 70%), radial-gradient(40% 45% at 82% 92%, rgba(86,212,0,0.10), transparent 70%)' }} />
-            <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full blur-3xl" style={{ background: 'rgba(86,212,0,0.22)', animation: 'pg 5s ease-in-out infinite' }} />
-            <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-            {/* contenido */}
-            <div className="relative z-10 w-full max-w-3xl text-center flex flex-col items-center">
-                <div className="bg-white rounded-xl px-4 py-2 shadow-lg" style={{ animation: 'pf .6s ease-out both' }}>
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Haleon_logo.svg/1280px-Haleon_logo.svg.png" alt="Haleon" className="h-7" />
+ 
+            {/* MAPA DE FONDO */}
+            {scriptsLoaded ? <PortadaMap /> : <div className="absolute inset-0" style={{ background: '#0b1120' }} />}
+ 
+            {/* velos para legibilidad */}
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(90deg, rgba(2,6,23,0.96) 0%, rgba(2,6,23,0.85) 38%, rgba(2,6,23,0.35) 70%, rgba(2,6,23,0.12) 100%)' }} />
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(2,6,23,0.7) 0%, transparent 22%, transparent 74%, rgba(2,6,23,0.88) 100%)' }} />
+            <div className="absolute -top-32 -left-24 w-[480px] h-[480px] rounded-full blur-3xl pointer-events-none" style={{ background: 'rgba(86,212,0,0.16)' }} />
+ 
+            {/* CONTENIDO */}
+            <div className="relative z-10 min-h-screen flex flex-col">
+                {/* top bar */}
+                <div className="flex items-center justify-between px-6 md:px-12 py-6" style={{ animation: 'pf .5s ease-out both' }}>
+                    <div className="bg-white rounded-lg px-3 py-1.5 shadow-lg">
+                        <HaleonLogo h={24} />
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
+                        <span className="w-2 h-2 rounded-full bg-[#56D400]" style={{ boxShadow: '0 0 10px #56D400' }} />
+                        {scriptsLoaded ? 'Entorno listo · datos en vivo' : 'Preparando entorno…'}
+                    </div>
                 </div>
-
-                {/* ruta decorativa */}
-                <svg viewBox="0 0 320 90" className="w-72 mt-10" style={{ animation: 'pf .7s ease-out both' }}>
-                    <path d="M20 70 C 80 70, 80 25, 140 25 S 240 70, 300 30" fill="none" stroke="#56D400" strokeWidth="2.5" strokeDasharray="6 6" strokeLinecap="round" style={{ strokeDashoffset: 220, animation: 'pdash 2s ease-out .4s forwards' }} />
-                    {[[20, 70], [140, 25], [300, 30]].map(([cx, cy], i) => (
-                        <g key={i}>
-                            <circle cx={cx} cy={cy} r="9" fill="#56D400" opacity="0.25" />
-                            <circle cx={cx} cy={cy} r="4.5" fill="#56D400" />
-                        </g>
-                    ))}
-                </svg>
-
-                <h1 className="mt-8 text-4xl md:text-5xl font-black text-white tracking-tight leading-tight" style={{ animation: 'pf .8s ease-out both' }}>
-                    Comparativa de Rutas
-                </h1>
-                <p className="mt-1 text-2xl md:text-3xl font-bold text-[#56D400]" style={{ animation: 'pf .9s ease-out both' }}>
-                    Antes <span className="text-slate-500 font-normal">vs.</span> Después
-                </p>
-                <p className="mt-5 max-w-xl text-slate-400 text-base md:text-lg leading-relaxed" style={{ animation: 'pf 1s ease-out both' }}>
-                    Visualiza, filtra y compara dos propuestas de optimización de rutas:
-                    eficiencia, ocupación laboral y cobertura geoespacial de cada usuario.
-                </p>
-
-                <div className="mt-8 flex flex-wrap justify-center gap-3" style={{ animation: 'pf 1.1s ease-out both' }}>
-                    {['Filtros independientes', 'Mapas por usuario', 'KPIs comparativos'].map((t) => (
-                        <span key={t} className="px-4 py-2 rounded-full text-sm font-medium text-slate-200 bg-white/5 border border-white/10 backdrop-blur">
-                            {t}
-                        </span>
-                    ))}
+ 
+                {/* hero */}
+                <div className="flex-1 flex items-center px-6 md:px-12">
+                    <div className="max-w-2xl">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold mb-6"
+                            style={{ background: 'rgba(86,212,0,0.10)', borderColor: 'rgba(86,212,0,0.30)', color: '#9bf06a', animation: 'pf .7s ease-out both' }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#56D400]" />
+                            OPTIMIZACIÓN DE RUTAS COMERCIALES
+                        </div>
+                        <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight leading-[1.05]" style={{ animation: 'pf .8s ease-out both' }}>
+                            Comparativa de Rutas
+                            <span className="block text-[#56D400]">Antes <span className="text-slate-500 font-bold">vs.</span> Después</span>
+                        </h1>
+                        <p className="mt-6 text-lg md:text-xl text-slate-300 leading-relaxed max-w-xl" style={{ animation: 'pf .95s ease-out both' }}>
+                            Analiza, filtra y compara dos propuestas de cobertura comercial a nivel nacional:
+                            eficiencia, ocupación laboral y distribución geoespacial de cada usuario.
+                        </p>
+ 
+                        <div className="mt-7 flex flex-wrap gap-3" style={{ animation: 'pf 1.1s ease-out both' }}>
+                            {['Filtros independientes', 'Mapas por usuario', 'KPIs comparativos'].map((t) => (
+                                <span key={t} className="px-4 py-2 rounded-full text-sm font-medium text-slate-200 bg-white/5 border border-white/10 backdrop-blur">
+                                    {t}
+                                </span>
+                            ))}
+                        </div>
+ 
+                        <div className="mt-10 flex flex-wrap items-center gap-4" style={{ animation: 'pf 1.25s ease-out both' }}>
+                            <button
+                                onClick={onEnter}
+                                className="px-9 py-4 rounded-xl bg-[#56D400] text-black font-extrabold text-lg shadow-[0_10px_40px_-10px_rgba(86,212,0,0.7)] hover:scale-105 hover:shadow-[0_16px_55px_-10px_rgba(86,212,0,0.95)] transition-all duration-200"
+                            >
+                                Entrar al Dashboard →
+                            </button>
+                            <span className="text-sm text-slate-400">Cobertura nacional · Colombia</span>
+                        </div>
+                    </div>
                 </div>
-
-                <button
-                    onClick={onEnter}
-                    className="mt-10 px-9 py-4 rounded-xl bg-[#56D400] text-black font-extrabold text-lg shadow-[0_10px_40px_-10px_rgba(86,212,0,0.7)] hover:scale-105 hover:shadow-[0_16px_50px_-10px_rgba(86,212,0,0.9)] transition-all duration-200"
-                    style={{ animation: 'pf 1.2s ease-out both' }}
-                >
-                    Entrar al Dashboard →
-                </button>
-                <p className="mt-4 text-xs text-slate-500" style={{ animation: 'pf 1.3s ease-out both' }}>
-                    {scriptsLoaded ? 'Entorno listo · carga automática activada' : 'Preparando entorno…'}
-                </p>
-            </div>
-
-            <div className="absolute bottom-4 left-0 right-0 text-center text-[11px] text-slate-600">
-                Haleon · Análisis de Rutas
+ 
+                {/* footer mini-stats */}
+                <div className="px-6 md:px-12 py-6 border-t border-white/5" style={{ animation: 'pf 1.4s ease-out both' }}>
+                    <div className="flex flex-wrap items-end gap-8 md:gap-12">
+                        {[['2', 'Propuestas comparadas'], ['Antes / Después', 'Escenarios'], ['Tiempo real', 'Filtros y mapas']].map(([big, small]) => (
+                            <div key={small}>
+                                <div className="text-xl md:text-2xl font-black text-white">{big}</div>
+                                <div className="text-xs text-slate-400 mt-0.5">{small}</div>
+                            </div>
+                        ))}
+                        <div className="ml-auto text-[11px] text-slate-600">Haleon · Análisis de Rutas</div>
+                    </div>
+                </div>
             </div>
         </div>
     );
 }
-
+ 
 // =============================================================
 //  RAÍZ: muestra la portada y, al entrar, el dashboard
 // =============================================================
 export default function App() {
     const [view, setView] = useState('portada');
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
-
+ 
     // Precarga Leaflet + SheetJS mientras el usuario está en la portada
     useEffect(() => {
         const loadScript = (src) => new Promise((resolve) => {
@@ -731,7 +827,7 @@ export default function App() {
             loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js')
         ]).then(() => setScriptsLoaded(true));
     }, []);
-
+ 
     if (view === 'portada') {
         return <Portada onEnter={() => setView('dashboard')} scriptsLoaded={scriptsLoaded} />;
     }
