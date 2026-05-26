@@ -141,6 +141,46 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
         .sort((a, b) => b.total - a.total);
 };
  
+// Resumen por REGIONAL (para el comparativo). El % de ocupación es el promedio
+// por cupo de la regional: (servicio + desplazamiento) / (cupos * 168).
+const computeRegionalSummary = (baseRows, despRows) => {
+    const grouped = {};
+    const ensure = (reg) => {
+        if (!grouped[reg]) grouped[reg] = { hrsServ: 0, desp: 0, pdv: 0, frec: 0, rutas: new Set() };
+        return grouped[reg];
+    };
+    const routeToReg = {};
+    (baseRows || []).forEach((row) => {
+        const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
+        const g = ensure(reg);
+        g.hrsServ += parseNum(get(row, F.hrs));
+        g.pdv += 1;
+        g.frec += parseIntSafe(get(row, F.frecuencia));
+        const r = norm(get(row, F.ruta));
+        if (r) { g.rutas.add(r); routeToReg[r] = reg; }
+    });
+    if (despRows && despRows.length) {
+        // hoja de desplazamiento aparte: se atribuye a la regional según la ruta
+        despRows.forEach((row) => {
+            const reg = routeToReg[norm(get(row, F.ruta))] || 'Sin Regional';
+            ensure(reg).desp += parseNum(get(row, F.desp));
+        });
+    } else {
+        // desplazamiento viene en la misma base (columna por PDV)
+        (baseRows || []).forEach((row) => {
+            const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
+            ensure(reg).desp += parseNum(get(row, F.desp));
+        });
+    }
+    return Object.entries(grouped)
+        .map(([reg, v]) => {
+            const cupos = v.rutas.size || 1;
+            const total = v.hrsServ + v.desp;
+            return { reg, pdv: v.pdv, frec: v.frec, hrsServ: v.hrsServ, desp: v.desp, cupos, pctProm: (total / (cupos * 168)) * 100 };
+        })
+        .sort((a, b) => b.pdv - a.pdv);
+};
+ 
 // Clasifica cada hoja del Excel: lado (anterior/nuevo) y si es hoja de desplazamiento.
 // Usa el nombre y, como respaldo, las columnas (más robusto).
 const classifySheet = (name, rows) => {
@@ -274,6 +314,17 @@ function HaleonLogo({ h = 24 }) {
     );
 }
  
+// Lockup de logos: Haleon (marca/archivo) + Visión & Marketing
+function Logos({ h = 32 }) {
+    return (
+        <div className="flex items-center gap-3">
+            <HaleonLogo h={h} />
+            <span className="w-px bg-slate-300" style={{ height: h * 0.8 }} />
+            <img src="/logo-vision.png" alt="Visión & Marketing · Grupo Ohla" style={{ height: h }} className="object-contain" />
+        </div>
+    );
+}
+ 
 // =============================================================
 //  COMPONENTE PRINCIPAL
 // =============================================================
@@ -390,6 +441,8 @@ function Dashboard({ scriptsLoaded, onHome }) {
  
     const summaryViejas = useMemo(() => computeRouteSummary(filteredA.base, filteredA.desp, colorMapA), [filteredA, colorMapA]);
     const summaryNuevas = useMemo(() => computeRouteSummary(filteredN.base, filteredN.desp, colorMapN), [filteredN, colorMapN]);
+    const regionalViejas = useMemo(() => computeRegionalSummary(filteredA.base, filteredA.desp), [filteredA]);
+    const regionalNuevas = useMemo(() => computeRegionalSummary(filteredN.base, filteredN.desp), [filteredN]);
  
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
@@ -439,6 +492,45 @@ function Dashboard({ scriptsLoaded, onHome }) {
  
     const emptyRow = (cols, msg) => (
         <tr><td colSpan={cols} className="text-center text-slate-400 py-8">{msg}</td></tr>
+    );
+ 
+    // --- fila / encabezado del comparativo por REGIONAL ---
+    const RegionalRow = ({ s }) => {
+        const over = s.pctProm > 100;
+        const warn = s.pctProm > 85 && s.pctProm <= 100;
+        const barColor = over ? 'bg-red-500' : warn ? 'bg-amber-400' : 'bg-[#56D400]';
+        return (
+            <tr className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="p-3 text-sm font-medium text-slate-800">{s.reg}</td>
+                <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.pdv.toLocaleString()}</td>
+                <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.frec.toLocaleString()}</td>
+                <td className="p-3 text-sm text-slate-600 whitespace-nowrap">{s.hrsServ.toFixed(1)}h</td>
+                <td className="p-3 text-sm text-slate-600 whitespace-nowrap">{s.desp.toFixed(1)}h</td>
+                <td className="p-3 text-sm">
+                    <div className="flex items-center gap-2">
+                        <div className="w-20 bg-slate-200 rounded-full h-2 overflow-hidden shrink-0">
+                            <div className={`h-2 rounded-full ${barColor}`} style={{ width: `${Math.min(s.pctProm, 100)}%` }} />
+                        </div>
+                        <span className={over ? 'text-red-600 font-bold' : 'text-slate-700'}>
+                            {s.pctProm.toFixed(1)}%{over ? ' ⚠' : ''}
+                        </span>
+                    </div>
+                </td>
+            </tr>
+        );
+    };
+ 
+    const RegionalTableHead = () => (
+        <thead className="sticky top-0 z-20">
+            <tr className="text-xs uppercase text-slate-500">
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200">Regional</th>
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">PDV</th>
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">Frec.</th>
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 whitespace-nowrap">T. Serv.</th>
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 whitespace-nowrap">T. Desp.</th>
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 whitespace-nowrap">% Ocup. Prom.</th>
+            </tr>
+        </thead>
     );
  
     // --- directorio general (rutas nuevas, respeta el filtro del lado nuevo) ---
@@ -495,7 +587,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </div>
                             <span className="text-xs text-slate-500 mt-2 font-medium">{status}</span>
                         </div>
-                        <HaleonLogo h={36} />
+                        <Logos h={30} />
                     </div>
                 </header>
  
@@ -581,6 +673,36 @@ function Dashboard({ scriptsLoaded, onHome }) {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                </div>
+ 
+                {/* COMPARATIVO POR REGIONAL */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[460px]">
+                        <div className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0">
+                            <h3 className="text-lg font-bold text-slate-800">Comparativo por Regional <span className="text-slate-400 font-normal">(Anterior)</span></h3>
+                        </div>
+                        <div className="overflow-y-auto flex-1 px-5 pb-4">
+                            <table className="w-full text-left">
+                                <RegionalTableHead />
+                                <tbody>
+                                    {regionalViejas.length === 0 ? emptyRow(6, 'Sin datos') : regionalViejas.map((s) => <RegionalRow key={s.reg} s={s} />)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[460px] border-t-4 border-t-[#56D400]">
+                        <div className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0">
+                            <h3 className="text-lg font-bold text-slate-800">Comparativo por Regional <span className="text-[#56D400]">(Optimizado)</span></h3>
+                        </div>
+                        <div className="overflow-y-auto flex-1 px-5 pb-4">
+                            <table className="w-full text-left">
+                                <RegionalTableHead />
+                                <tbody>
+                                    {regionalNuevas.length === 0 ? emptyRow(6, 'Sin datos') : regionalNuevas.map((s) => <RegionalRow key={s.reg} s={s} />)}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -755,8 +877,8 @@ function Portada({ onEnter, scriptsLoaded }) {
             <div className="relative z-10 min-h-screen flex flex-col">
                 {/* top bar */}
                 <div className="flex items-center justify-between px-6 md:px-12 py-6" style={{ animation: 'pf .5s ease-out both' }}>
-                    <div className="bg-white rounded-lg px-3 py-1.5 shadow-lg">
-                        <HaleonLogo h={24} />
+                    <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-slate-200">
+                        <Logos h={22} />
                     </div>
                     <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
                         <span className="w-2 h-2 rounded-full bg-[#56D400]" style={{ boxShadow: '0 0 10px #56D400' }} />
