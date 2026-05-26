@@ -502,6 +502,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         return (
             <tr className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="p-3 text-sm font-medium text-slate-800">{s.reg}</td>
+                <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.cupos.toLocaleString()}</td>
                 <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.pdv.toLocaleString()}</td>
                 <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.frec.toLocaleString()}</td>
                 <td className="p-3 text-sm text-slate-600 whitespace-nowrap">{s.hrsServ.toFixed(1)}h</td>
@@ -524,6 +525,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
                 <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200">Regional</th>
+                <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">Cupos</th>
                 <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">PDV</th>
                 <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">Frec.</th>
                 <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 whitespace-nowrap">T. Serv.</th>
@@ -687,7 +689,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             <table className="w-full text-left">
                                 <RegionalTableHead />
                                 <tbody>
-                                    {regionalViejas.length === 0 ? emptyRow(6, 'Sin datos') : regionalViejas.map((s) => <RegionalRow key={s.reg} s={s} />)}
+                                    {regionalViejas.length === 0 ? emptyRow(7, 'Sin datos') : regionalViejas.map((s) => <RegionalRow key={s.reg} s={s} />)}
                                 </tbody>
                             </table>
                         </div>
@@ -700,7 +702,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             <table className="w-full text-left">
                                 <RegionalTableHead />
                                 <tbody>
-                                    {regionalNuevas.length === 0 ? emptyRow(6, 'Sin datos') : regionalNuevas.map((s) => <RegionalRow key={s.reg} s={s} />)}
+                                    {regionalNuevas.length === 0 ? emptyRow(7, 'Sin datos') : regionalNuevas.map((s) => <RegionalRow key={s.reg} s={s} />)}
                                 </tbody>
                             </table>
                         </div>
