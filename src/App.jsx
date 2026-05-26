@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
- 
+
 // =============================================================
 //  UTILIDADES
 // =============================================================
 const norm = (v) => String(v ?? '').trim().toUpperCase();
- 
+
 // Parseo numérico tolerante a comas decimales / miles (Excel en español)
 const parseNum = (v) => {
     if (v === undefined || v === null || v === '') return 0;
@@ -14,7 +14,7 @@ const parseNum = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : 0;
 };
- 
+
 // Coordenadas: aceptan número o texto con coma decimal (ej. "4,5399684")
 const parseCoord = (v) => {
     if (typeof v === 'number') return isFinite(v) ? v : NaN;
@@ -24,13 +24,13 @@ const parseCoord = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : NaN;
 };
- 
+
 const parseIntSafe = (v) => {
     if (typeof v === 'number') return Math.round(v);
     const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10);
     return isFinite(n) ? n : 0;
 };
- 
+
 // Diccionario de columnas. Cubre AMBOS archivos (anterior y nuevo); como cada
 // fila solo trae uno de los alias, get() devuelve el primero presente.
 const F = {
@@ -47,7 +47,7 @@ const F = {
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
 };
- 
+
 const get = (row, keys) => {
     if (!row) return undefined;
     for (const k of keys) {
@@ -55,7 +55,7 @@ const get = (row, keys) => {
     }
     return undefined;
 };
- 
+
 // Fallback de color (rutas sin entrada en la paleta)
 const stringToColor = (str) => {
     if (!str) return '#94a3b8';
@@ -66,7 +66,7 @@ const stringToColor = (str) => {
     for (let i = 0; i < 3; i++) color += ('00' + ((hash >> (i * 8)) & 0xFF).toString(16)).substr(-2);
     return color;
 };
- 
+
 // Paleta estable y bien diferenciada para N usuarios/rutas
 const buildColorMap = (routes) => {
     const sorted = [...new Set(routes.map((r) => String(r).trim()).filter(Boolean))]
@@ -81,7 +81,7 @@ const buildColorMap = (routes) => {
     });
     return map;
 };
- 
+
 // ¿La fila cumple los filtros indicados?
 const rowMatches = (row, f) => {
     if (f.CIUDAD && norm(get(row, F.ciudad)) !== norm(f.CIUDAD)) return false;
@@ -90,9 +90,9 @@ const rowMatches = (row, f) => {
     if (f.SUPERVISOR && norm(get(row, F.supervisor)) !== norm(f.SUPERVISOR)) return false;
     return true;
 };
- 
+
 const FIELD_KEYS = { CIUDAD: F.ciudad, REGIONAL: F.regional, RUTA: F.ruta, SUPERVISOR: F.supervisor };
- 
+
 // Opciones de un filtro (en cascada con los demás filtros activos del MISMO lado)
 const optionsFor = (baseRows, filters, field) => {
     const others = { ...filters, [field]: '' };
@@ -103,7 +103,7 @@ const optionsFor = (baseRows, filters, field) => {
     });
     return [...set].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 };
- 
+
 // Aplica filtros a un lado (base + desplazamiento) de forma independiente
 const filterSide = (base, desp, filters) => {
     const anyActive = Object.values(filters).some(Boolean);
@@ -113,7 +113,7 @@ const filterSide = (base, desp, filters) => {
     const d = (desp || []).filter((r) => allowed.has(norm(get(r, F.ruta))));
     return { base: b, desp: d };
 };
- 
+
 // Resumen por ruta (idéntico para ambos lados). El desplazamiento sale de la
 // hoja dedicada si existe; si no, de la columna DESPLAZAMIENTO de la base.
 const computeRouteSummary = (baseRows, despRows, colorMap) => {
@@ -138,7 +138,7 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
         })
         .sort((a, b) => b.total - a.total);
 };
- 
+
 // Clasifica cada hoja del Excel: lado (anterior/nuevo) y si es hoja de desplazamiento.
 // Usa el nombre y, como respaldo, las columnas (más robusto).
 const classifySheet = (name, rows) => {
@@ -147,7 +147,7 @@ const classifySheet = (name, rows) => {
     const hasKey = (s) => keys.some((k) => k.includes(s));
     const nameHasDesp = U.includes('DEZPLASAMIENTO') || U.includes('DESPLAZAMIENTO');
     const isDespSheet = nameHasDesp && (hasKey('TIEMPO') || keys.length <= 6);
- 
+
     let side = null;
     if (U.includes('NUEV') || U.includes('ACTUAL') || U.includes('OPTIM')) side = 'nuevo';
     else if (U.includes('VIEJ') || U.includes('ANTERIOR') || U.includes('ANTES')) side = 'anterior';
@@ -157,14 +157,14 @@ const classifySheet = (name, rows) => {
     }
     return { side, isDespSheet };
 };
- 
+
 // =============================================================
 //  MAPA (Leaflet) — cada lado usa SUS PROPIAS coordenadas
 // =============================================================
 const MapComponent = ({ data, colorMap }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
- 
+
     useEffect(() => {
         if (!window.L || !mapRef.current || mapInstance.current) return;
         mapInstance.current = window.L.map(mapRef.current, { preferCanvas: true }).setView([4.6097, -74.0817], 5);
@@ -172,13 +172,13 @@ const MapComponent = ({ data, colorMap }) => {
             .addTo(mapInstance.current);
         return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
     }, []);
- 
+
     useEffect(() => {
         if (!mapInstance.current || !window.L) return;
         mapInstance.current.eachLayer((layer) => {
             if (layer instanceof window.L.CircleMarker) mapInstance.current.removeLayer(layer);
         });
- 
+
         const lats = [], lngs = [];
         (data || []).forEach((row) => {
             const lat = parseCoord(get(row, F.lat));
@@ -197,7 +197,7 @@ const MapComponent = ({ data, colorMap }) => {
                 )
                 .addTo(mapInstance.current);
         });
- 
+
         if (lats.length > 0) {
             mapInstance.current.fitBounds(
                 [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
@@ -205,10 +205,10 @@ const MapComponent = ({ data, colorMap }) => {
             );
         }
     }, [data, colorMap]);
- 
+
     return <div ref={mapRef} className="w-full h-full bg-slate-100 z-0 relative" />;
 };
- 
+
 // =============================================================
 //  BARRA DE FILTROS (independiente por lado)
 // =============================================================
@@ -250,7 +250,7 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
         </div>
     );
 }
- 
+
 // =============================================================
 //  COMPONENTE PRINCIPAL
 // =============================================================
@@ -258,12 +258,76 @@ function Dashboard({ scriptsLoaded, onHome }) {
     const [status, setStatus] = useState('Esperando archivo Excel...');
     const [isLoading, setIsLoading] = useState(false);
     const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] });
- 
+    const [autoLoaded, setAutoLoaded] = useState(false); // Bandera para evitar re-cargas múltiples
+
     const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '' };
-    const [filtersA, setFiltersA] = useState(emptyFilters); // Propuesta ANTERIOR
-    const [filtersN, setFiltersN] = useState(emptyFilters); // Propuesta NUEVA
- 
-    // --- lectura del Excel ---
+    const [filtersA, setFiltersA] = useState(emptyFilters);
+    const [filtersN, setFiltersN] = useState(emptyFilters);
+
+    // --- Función centralizada para procesar el Excel en crudo ---
+    const processExcelBuffer = (buffer) => {
+        const wb = window.XLSX.read(buffer, { type: 'array' });
+        const raw = { bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] };
+        
+        wb.SheetNames.forEach((sn) => {
+            const sd = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+            if (!sd.length) return;
+            const { side, isDespSheet } = classifySheet(sn, sd);
+            if (side === 'nuevo') {
+                if (isDespSheet) raw.dNuevas = raw.dNuevas.concat(sd);
+                else raw.bNuevas = raw.bNuevas.concat(sd);
+            } else if (side === 'anterior') {
+                if (isDespSheet) raw.dViejas = raw.dViejas.concat(sd);
+                else raw.bViejas = raw.bViejas.concat(sd);
+            }
+        });
+        
+        setDataState(raw);
+        setFiltersA(emptyFilters);
+        setFiltersN(emptyFilters);
+    };
+
+    // =========================================================
+    //  NUEVO: Auto-carga del Excel usando Fetch al iniciar
+    // =========================================================
+    useEffect(() => {
+        // Solo ejecuta si los scripts (XLSX) ya cargaron y no se ha auto-cargado antes
+        if (!scriptsLoaded || autoLoaded) return;
+
+        const fetchExcel = async () => {
+            try {
+                setIsLoading(true);
+                setStatus('⏳ Auto-cargando datos...');
+
+                // 📌 AQUI PONES LA RUTA DE TU EXCEL
+                // Si pones el excel en la carpeta "public" de Vercel, la ruta es "/datos.xlsx"
+                const fileUrl = '/datos.xlsx'; 
+                
+                const response = await fetch(fileUrl);
+                
+                if (!response.ok) {
+                    throw new Error('Archivo no encontrado o error de red');
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                processExcelBuffer(arrayBuffer);
+
+                setStatus('✅ ¡Dashboard Auto-Alimentado!');
+                setTimeout(() => setStatus('Datos listos'), 3000);
+            } catch (err) {
+                console.warn('Carga automática omitida. Se requiere carga manual.', err);
+                setStatus('⚠️ Esperando archivo manual');
+            } finally {
+                setIsLoading(false);
+                setAutoLoaded(true); // Evitar re-intentos
+            }
+        };
+
+        fetchExcel();
+    }, [scriptsLoaded, autoLoaded]);
+
+
+    // --- lectura del Excel (Plan B / Manual) ---
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file || !window.XLSX) return;
@@ -272,23 +336,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         const reader = new FileReader();
         reader.onload = (evt) => {
             try {
-                const wb = window.XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
-                const raw = { bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] };
-                wb.SheetNames.forEach((sn) => {
-                    const sd = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
-                    if (!sd.length) return;
-                    const { side, isDespSheet } = classifySheet(sn, sd);
-                    if (side === 'nuevo') {
-                        if (isDespSheet) raw.dNuevas = raw.dNuevas.concat(sd);
-                        else raw.bNuevas = raw.bNuevas.concat(sd);
-                    } else if (side === 'anterior') {
-                        if (isDespSheet) raw.dViejas = raw.dViejas.concat(sd);
-                        else raw.bViejas = raw.bViejas.concat(sd);
-                    }
-                });
-                setDataState(raw);
-                setFiltersA(emptyFilters);
-                setFiltersN(emptyFilters);
+                processExcelBuffer(new Uint8Array(evt.target.result));
                 setStatus('✅ ¡Dashboard Actualizado!');
                 setTimeout(() => setStatus('Datos cargados'), 3000);
             } catch (err) {
@@ -300,7 +348,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         };
         reader.readAsArrayBuffer(file);
     };
- 
+
     // --- paletas de color INDEPENDIENTES por lado ---
     const colorMapA = useMemo(
         () => buildColorMap((dataState.bViejas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
@@ -310,11 +358,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
         () => buildColorMap((dataState.bNuevas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
         [dataState]
     );
- 
+
     // --- datos filtrados de forma INDEPENDIENTE ---
     const filteredA = useMemo(() => filterSide(dataState.bViejas, dataState.dViejas, filtersA), [dataState, filtersA]);
     const filteredN = useMemo(() => filterSide(dataState.bNuevas, dataState.dNuevas, filtersN), [dataState, filtersN]);
- 
+
     // --- KPIs (sin mezclar datos entre archivos) ---
     const kpis = useMemo(() => {
         const bV = filteredA.base, dV = filteredA.desp, bN = filteredN.base, dN = filteredN.desp;
@@ -332,10 +380,10 @@ function Dashboard({ scriptsLoaded, onHome }) {
             frecNuevas: bN.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
         };
     }, [filteredA, filteredN]);
- 
+
     const summaryViejas = useMemo(() => computeRouteSummary(filteredA.base, filteredA.desp, colorMapA), [filteredA, colorMapA]);
     const summaryNuevas = useMemo(() => computeRouteSummary(filteredN.base, filteredN.desp, colorMapN), [filteredN, colorMapN]);
- 
+
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
         const over = s.pct > 100;
@@ -365,7 +413,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         );
     };
- 
+
     const RouteTableHead = () => (
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
@@ -377,11 +425,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         </thead>
     );
- 
+
     const emptyRow = (cols, msg) => (
         <tr><td colSpan={cols} className="text-center text-slate-400 py-8">{msg}</td></tr>
     );
- 
+
     // --- directorio general (rutas nuevas, respeta el filtro del lado nuevo) ---
     const renderTableGeneral = () => {
         const rows = filteredN.base || [];
@@ -403,11 +451,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         ));
     };
- 
+
     return (
         <div className="min-h-screen bg-slate-100 font-sans p-6 overflow-x-hidden flex justify-center">
             <div className="w-full max-w-[1800px] flex flex-col gap-6">
- 
+
                 {/* HEADER */}
                 <header className="bg-white rounded-2xl p-6 shadow-sm flex flex-wrap gap-4 justify-between items-center border border-slate-200">
                     <div className="flex flex-col items-start">
@@ -429,7 +477,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Haleon_logo.svg/1280px-Haleon_logo.svg.png" alt="Haleon" className="h-10" />
                     </div>
                 </header>
- 
+
                 {/* KPIS (comparan cada lado según su propio filtro) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-4">
                     <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" />
@@ -446,10 +494,10 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" />
                 </div>
- 
+
                 {/* DOS COLUMNAS INDEPENDIENTES */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- 
+
                     {/* ===== LADO IZQUIERDO: ANTERIOR ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -481,7 +529,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </div>
                         </div>
                     </div>
- 
+
                     {/* ===== LADO DERECHO: OPTIMIZADA ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -515,7 +563,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </div>
                     </div>
                 </div>
- 
+
                 {/* DIRECTORIO GENERAL (rutas nuevas) */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[620px]">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-wrap gap-2 justify-between items-end">
@@ -541,12 +589,12 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </table>
                     </div>
                 </div>
- 
+
             </div>
         </div>
     );
 }
- 
+
 // =============================================================
 //  TARJETA KPI
 // =============================================================
@@ -558,7 +606,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         if (format === 'pct') return v.toFixed(1) + '%';
         return String(v);
     };
- 
+
     let deltaStr = '-', isGood = false, isNeutral = true;
     if (valB > 0) {
         const delta = ((valA - valB) / valB) * 100;
@@ -566,7 +614,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         isNeutral = Math.abs(delta) < 0.5;
         isGood = inverse ? delta < 0 : delta > 0;
     }
- 
+
     return (
         <div className="bg-white rounded-2xl p-4 xl:p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow overflow-hidden w-full">
             <h4 className="text-[10px] xl:text-xs font-bold text-slate-500 uppercase tracking-wide min-h-[2.5rem] leading-tight mb-2 line-clamp-2">{title}</h4>
@@ -583,7 +631,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         </div>
     );
 }
- 
+
 // =============================================================
 //  PORTADA / PANTALLA DE BIENVENIDA
 // =============================================================
@@ -595,18 +643,18 @@ function Portada({ onEnter, scriptsLoaded }) {
                 @keyframes pg { 0%,100% { opacity: .45; } 50% { opacity: .9; } }
                 @keyframes pdash { to { stroke-dashoffset: 0; } }
             `}</style>
- 
+
             {/* atmósfera */}
             <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 60% at 50% 0%, rgba(86,212,0,0.18), transparent 70%), radial-gradient(40% 45% at 82% 92%, rgba(86,212,0,0.10), transparent 70%)' }} />
             <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full blur-3xl" style={{ background: 'rgba(86,212,0,0.22)', animation: 'pg 5s ease-in-out infinite' }} />
             <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
- 
+
             {/* contenido */}
             <div className="relative z-10 w-full max-w-3xl text-center flex flex-col items-center">
                 <div className="bg-white rounded-xl px-4 py-2 shadow-lg" style={{ animation: 'pf .6s ease-out both' }}>
                     <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Haleon_logo.svg/1280px-Haleon_logo.svg.png" alt="Haleon" className="h-7" />
                 </div>
- 
+
                 {/* ruta decorativa */}
                 <svg viewBox="0 0 320 90" className="w-72 mt-10" style={{ animation: 'pf .7s ease-out both' }}>
                     <path d="M20 70 C 80 70, 80 25, 140 25 S 240 70, 300 30" fill="none" stroke="#56D400" strokeWidth="2.5" strokeDasharray="6 6" strokeLinecap="round" style={{ strokeDashoffset: 220, animation: 'pdash 2s ease-out .4s forwards' }} />
@@ -617,7 +665,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                         </g>
                     ))}
                 </svg>
- 
+
                 <h1 className="mt-8 text-4xl md:text-5xl font-black text-white tracking-tight leading-tight" style={{ animation: 'pf .8s ease-out both' }}>
                     Comparativa de Rutas
                 </h1>
@@ -628,7 +676,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                     Visualiza, filtra y compara dos propuestas de optimización de rutas:
                     eficiencia, ocupación laboral y cobertura geoespacial de cada usuario.
                 </p>
- 
+
                 <div className="mt-8 flex flex-wrap justify-center gap-3" style={{ animation: 'pf 1.1s ease-out both' }}>
                     {['Filtros independientes', 'Mapas por usuario', 'KPIs comparativos'].map((t) => (
                         <span key={t} className="px-4 py-2 rounded-full text-sm font-medium text-slate-200 bg-white/5 border border-white/10 backdrop-blur">
@@ -636,7 +684,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                         </span>
                     ))}
                 </div>
- 
+
                 <button
                     onClick={onEnter}
                     className="mt-10 px-9 py-4 rounded-xl bg-[#56D400] text-black font-extrabold text-lg shadow-[0_10px_40px_-10px_rgba(86,212,0,0.7)] hover:scale-105 hover:shadow-[0_16px_50px_-10px_rgba(86,212,0,0.9)] transition-all duration-200"
@@ -645,24 +693,24 @@ function Portada({ onEnter, scriptsLoaded }) {
                     Entrar al Dashboard →
                 </button>
                 <p className="mt-4 text-xs text-slate-500" style={{ animation: 'pf 1.3s ease-out both' }}>
-                    {scriptsLoaded ? 'Entorno listo · carga tu Excel al entrar' : 'Preparando entorno…'}
+                    {scriptsLoaded ? 'Entorno listo · carga automática activada' : 'Preparando entorno…'}
                 </p>
             </div>
- 
+
             <div className="absolute bottom-4 left-0 right-0 text-center text-[11px] text-slate-600">
                 Haleon · Análisis de Rutas
             </div>
         </div>
     );
 }
- 
+
 // =============================================================
 //  RAÍZ: muestra la portada y, al entrar, el dashboard
 // =============================================================
 export default function App() {
     const [view, setView] = useState('portada');
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
- 
+
     // Precarga Leaflet + SheetJS mientras el usuario está en la portada
     useEffect(() => {
         const loadScript = (src) => new Promise((resolve) => {
@@ -681,10 +729,9 @@ export default function App() {
             loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js')
         ]).then(() => setScriptsLoaded(true));
     }, []);
- 
+
     if (view === 'portada') {
         return <Portada onEnter={() => setView('dashboard')} scriptsLoaded={scriptsLoaded} />;
     }
     return <Dashboard scriptsLoaded={scriptsLoaded} onHome={() => setView('portada')} />;
 }
- 
