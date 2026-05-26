@@ -254,33 +254,14 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
 // =============================================================
 //  COMPONENTE PRINCIPAL
 // =============================================================
-export default function App() {
-    const [scriptsLoaded, setScriptsLoaded] = useState(false);
-    const [status, setStatus] = useState('Cargando entorno...');
+function Dashboard({ scriptsLoaded, onHome }) {
+    const [status, setStatus] = useState('Esperando archivo Excel...');
     const [isLoading, setIsLoading] = useState(false);
     const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] });
  
     const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '' };
     const [filtersA, setFiltersA] = useState(emptyFilters); // Propuesta ANTERIOR
     const [filtersN, setFiltersN] = useState(emptyFilters); // Propuesta NUEVA
- 
-    // --- carga de librerías externas ---
-    useEffect(() => {
-        const loadScript = (src) => new Promise((resolve) => {
-            const s = document.createElement('script');
-            s.src = src; s.onload = resolve; document.head.appendChild(s);
-        });
-        if (!document.getElementById('leaflet-css')) {
-            const link = document.createElement('link');
-            link.id = 'leaflet-css'; link.rel = 'stylesheet';
-            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(link);
-        }
-        Promise.all([
-            loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'),
-            loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js')
-        ]).then(() => { setScriptsLoaded(true); setStatus('Esperando archivo Excel...'); });
-    }, []);
  
     // --- lectura del Excel ---
     const handleFileUpload = (e) => {
@@ -429,7 +410,10 @@ export default function App() {
  
                 {/* HEADER */}
                 <header className="bg-white rounded-2xl p-6 shadow-sm flex flex-wrap gap-4 justify-between items-center border border-slate-200">
-                    <div>
+                    <div className="flex flex-col items-start">
+                        <button onClick={onHome} className="text-xs font-semibold text-slate-400 hover:text-slate-700 transition-colors mb-1">
+                            ← Portada
+                        </button>
                         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Comparativa de Rutas: Antes vs. Después</h1>
                         <p className="text-slate-500 mt-1">Análisis de eficiencia, ocupación laboral y agrupación geoespacial.</p>
                     </div>
@@ -598,5 +582,109 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
             </div>
         </div>
     );
+}
+ 
+// =============================================================
+//  PORTADA / PANTALLA DE BIENVENIDA
+// =============================================================
+function Portada({ onEnter, scriptsLoaded }) {
+    return (
+        <div className="min-h-screen relative overflow-hidden bg-slate-950 flex items-center justify-center p-6 font-sans">
+            <style>{`
+                @keyframes pf { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+                @keyframes pg { 0%,100% { opacity: .45; } 50% { opacity: .9; } }
+                @keyframes pdash { to { stroke-dashoffset: 0; } }
+            `}</style>
+ 
+            {/* atmósfera */}
+            <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 60% at 50% 0%, rgba(86,212,0,0.18), transparent 70%), radial-gradient(40% 45% at 82% 92%, rgba(86,212,0,0.10), transparent 70%)' }} />
+            <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full blur-3xl" style={{ background: 'rgba(86,212,0,0.22)', animation: 'pg 5s ease-in-out infinite' }} />
+            <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+ 
+            {/* contenido */}
+            <div className="relative z-10 w-full max-w-3xl text-center flex flex-col items-center">
+                <div className="bg-white rounded-xl px-4 py-2 shadow-lg" style={{ animation: 'pf .6s ease-out both' }}>
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Haleon_logo.svg/1280px-Haleon_logo.svg.png" alt="Haleon" className="h-7" />
+                </div>
+ 
+                {/* ruta decorativa */}
+                <svg viewBox="0 0 320 90" className="w-72 mt-10" style={{ animation: 'pf .7s ease-out both' }}>
+                    <path d="M20 70 C 80 70, 80 25, 140 25 S 240 70, 300 30" fill="none" stroke="#56D400" strokeWidth="2.5" strokeDasharray="6 6" strokeLinecap="round" style={{ strokeDashoffset: 220, animation: 'pdash 2s ease-out .4s forwards' }} />
+                    {[[20, 70], [140, 25], [300, 30]].map(([cx, cy], i) => (
+                        <g key={i}>
+                            <circle cx={cx} cy={cy} r="9" fill="#56D400" opacity="0.25" />
+                            <circle cx={cx} cy={cy} r="4.5" fill="#56D400" />
+                        </g>
+                    ))}
+                </svg>
+ 
+                <h1 className="mt-8 text-4xl md:text-5xl font-black text-white tracking-tight leading-tight" style={{ animation: 'pf .8s ease-out both' }}>
+                    Comparativa de Rutas
+                </h1>
+                <p className="mt-1 text-2xl md:text-3xl font-bold text-[#56D400]" style={{ animation: 'pf .9s ease-out both' }}>
+                    Antes <span className="text-slate-500 font-normal">vs.</span> Después
+                </p>
+                <p className="mt-5 max-w-xl text-slate-400 text-base md:text-lg leading-relaxed" style={{ animation: 'pf 1s ease-out both' }}>
+                    Visualiza, filtra y compara dos propuestas de optimización de rutas:
+                    eficiencia, ocupación laboral y cobertura geoespacial de cada usuario.
+                </p>
+ 
+                <div className="mt-8 flex flex-wrap justify-center gap-3" style={{ animation: 'pf 1.1s ease-out both' }}>
+                    {['Filtros independientes', 'Mapas por usuario', 'KPIs comparativos'].map((t) => (
+                        <span key={t} className="px-4 py-2 rounded-full text-sm font-medium text-slate-200 bg-white/5 border border-white/10 backdrop-blur">
+                            {t}
+                        </span>
+                    ))}
+                </div>
+ 
+                <button
+                    onClick={onEnter}
+                    className="mt-10 px-9 py-4 rounded-xl bg-[#56D400] text-black font-extrabold text-lg shadow-[0_10px_40px_-10px_rgba(86,212,0,0.7)] hover:scale-105 hover:shadow-[0_16px_50px_-10px_rgba(86,212,0,0.9)] transition-all duration-200"
+                    style={{ animation: 'pf 1.2s ease-out both' }}
+                >
+                    Entrar al Dashboard →
+                </button>
+                <p className="mt-4 text-xs text-slate-500" style={{ animation: 'pf 1.3s ease-out both' }}>
+                    {scriptsLoaded ? 'Entorno listo · carga tu Excel al entrar' : 'Preparando entorno…'}
+                </p>
+            </div>
+ 
+            <div className="absolute bottom-4 left-0 right-0 text-center text-[11px] text-slate-600">
+                Haleon · Análisis de Rutas
+            </div>
+        </div>
+    );
+}
+ 
+// =============================================================
+//  RAÍZ: muestra la portada y, al entrar, el dashboard
+// =============================================================
+export default function App() {
+    const [view, setView] = useState('portada');
+    const [scriptsLoaded, setScriptsLoaded] = useState(false);
+ 
+    // Precarga Leaflet + SheetJS mientras el usuario está en la portada
+    useEffect(() => {
+        const loadScript = (src) => new Promise((resolve) => {
+            if ([...document.scripts].some((s) => s.src === src)) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = src; s.onload = resolve; document.head.appendChild(s);
+        });
+        if (!document.getElementById('leaflet-css')) {
+            const link = document.createElement('link');
+            link.id = 'leaflet-css'; link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(link);
+        }
+        Promise.all([
+            loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'),
+            loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js')
+        ]).then(() => setScriptsLoaded(true));
+    }, []);
+ 
+    if (view === 'portada') {
+        return <Portada onEnter={() => setView('dashboard')} scriptsLoaded={scriptsLoaded} />;
+    }
+    return <Dashboard scriptsLoaded={scriptsLoaded} onHome={() => setView('portada')} />;
 }
  
