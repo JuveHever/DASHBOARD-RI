@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
- 
+
 // =============================================================
 //  UTILIDADES
 // =============================================================
 const norm = (v) => String(v ?? '').trim().toUpperCase();
- 
+
 // Parseo numérico tolerante a comas decimales / miles (Excel en español)
 const parseNum = (v) => {
     if (v === undefined || v === null || v === '') return 0;
@@ -14,7 +14,7 @@ const parseNum = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : 0;
 };
- 
+
 // Coordenadas: aceptan número o texto con coma decimal (ej. "4,5399684")
 const parseCoord = (v) => {
     if (typeof v === 'number') return isFinite(v) ? v : NaN;
@@ -24,13 +24,13 @@ const parseCoord = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : NaN;
 };
- 
+
 const parseIntSafe = (v) => {
     if (typeof v === 'number') return Math.round(v);
     const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10);
     return isFinite(n) ? n : 0;
 };
- 
+
 // Diccionario de columnas. Cubre AMBOS archivos (anterior y nuevo); como cada
 // fila solo trae uno de los alias, get() devuelve el primero presente.
 const F = {
@@ -47,7 +47,7 @@ const F = {
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
 };
- 
+
 const get = (row, keys) => {
     if (!row) return undefined;
     for (const k of keys) {
@@ -55,7 +55,7 @@ const get = (row, keys) => {
     }
     return undefined;
 };
- 
+
 // Fallback de color (rutas sin entrada en la paleta)
 const stringToColor = (str) => {
     if (!str) return '#94a3b8';
@@ -66,7 +66,7 @@ const stringToColor = (str) => {
     for (let i = 0; i < 3; i++) color += ('00' + ((hash >> (i * 8)) & 0xFF).toString(16)).substr(-2);
     return color;
 };
- 
+
 // Paleta estable y bien diferenciada para N usuarios/rutas
 const buildColorMap = (routes) => {
     const sorted = [...new Set(routes.map((r) => String(r).trim()).filter(Boolean))]
@@ -81,7 +81,7 @@ const buildColorMap = (routes) => {
     });
     return map;
 };
- 
+
 // ¿La fila cumple los filtros indicados?
 const rowMatches = (row, f) => {
     if (f.CIUDAD && norm(get(row, F.ciudad)) !== norm(f.CIUDAD)) return false;
@@ -90,9 +90,9 @@ const rowMatches = (row, f) => {
     if (f.SUPERVISOR && norm(get(row, F.supervisor)) !== norm(f.SUPERVISOR)) return false;
     return true;
 };
- 
+
 const FIELD_KEYS = { CIUDAD: F.ciudad, REGIONAL: F.regional, RUTA: F.ruta, SUPERVISOR: F.supervisor };
- 
+
 // Opciones de un filtro (en cascada con los demás filtros activos del MISMO lado)
 const optionsFor = (baseRows, filters, field) => {
     const others = { ...filters, [field]: '' };
@@ -103,7 +103,7 @@ const optionsFor = (baseRows, filters, field) => {
     });
     return [...set].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 };
- 
+
 // Aplica filtros a un lado (base + desplazamiento) de forma independiente
 const filterSide = (base, desp, filters) => {
     const anyActive = Object.values(filters).some(Boolean);
@@ -113,7 +113,7 @@ const filterSide = (base, desp, filters) => {
     const d = (desp || []).filter((r) => allowed.has(norm(get(r, F.ruta))));
     return { base: b, desp: d };
 };
- 
+
 // Resumen por ruta (idéntico para ambos lados). El desplazamiento sale de la
 // hoja dedicada si existe; si no, de la columna DESPLAZAMIENTO de la base.
 const computeRouteSummary = (baseRows, despRows, colorMap) => {
@@ -140,7 +140,7 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
         })
         .sort((a, b) => b.total - a.total);
 };
- 
+
 // Resumen por REGIONAL (para el comparativo). El % de ocupación es el promedio
 // por cupo de la regional: (servicio + desplazamiento) / (cupos * 168).
 const computeRegionalSummary = (baseRows, despRows) => {
@@ -180,7 +180,7 @@ const computeRegionalSummary = (baseRows, despRows) => {
         })
         .sort((a, b) => b.pdv - a.pdv);
 };
- 
+
 // Clasifica cada hoja del Excel: lado (anterior/nuevo) y si es hoja de desplazamiento.
 // Usa el nombre y, como respaldo, las columnas (más robusto).
 const classifySheet = (name, rows) => {
@@ -189,7 +189,7 @@ const classifySheet = (name, rows) => {
     const hasKey = (s) => keys.some((k) => k.includes(s));
     const nameHasDesp = U.includes('DEZPLASAMIENTO') || U.includes('DESPLAZAMIENTO');
     const isDespSheet = nameHasDesp && (hasKey('TIEMPO') || keys.length <= 6);
- 
+
     let side = null;
     if (U.includes('NUEV') || U.includes('ACTUAL') || U.includes('OPTIM')) side = 'nuevo';
     else if (U.includes('VIEJ') || U.includes('ANTERIOR') || U.includes('ANTES')) side = 'anterior';
@@ -199,14 +199,14 @@ const classifySheet = (name, rows) => {
     }
     return { side, isDespSheet };
 };
- 
+
 // =============================================================
 //  MAPA (Leaflet) — cada lado usa SUS PROPIAS coordenadas
 // =============================================================
 const MapComponent = ({ data, colorMap }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
- 
+
     useEffect(() => {
         if (!window.L || !mapRef.current || mapInstance.current) return;
         mapInstance.current = window.L.map(mapRef.current, { preferCanvas: true }).setView([4.6097, -74.0817], 5);
@@ -214,13 +214,13 @@ const MapComponent = ({ data, colorMap }) => {
             .addTo(mapInstance.current);
         return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
     }, []);
- 
+
     useEffect(() => {
         if (!mapInstance.current || !window.L) return;
         mapInstance.current.eachLayer((layer) => {
             if (layer instanceof window.L.CircleMarker) mapInstance.current.removeLayer(layer);
         });
- 
+
         const lats = [], lngs = [];
         (data || []).forEach((row) => {
             const lat = parseCoord(get(row, F.lat));
@@ -239,7 +239,7 @@ const MapComponent = ({ data, colorMap }) => {
                 )
                 .addTo(mapInstance.current);
         });
- 
+
         if (lats.length > 0) {
             mapInstance.current.fitBounds(
                 [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]],
@@ -247,10 +247,10 @@ const MapComponent = ({ data, colorMap }) => {
             );
         }
     }, [data, colorMap]);
- 
+
     return <div ref={mapRef} className="w-full h-full bg-slate-100 z-0 relative" />;
 };
- 
+
 // =============================================================
 //  BARRA DE FILTROS (independiente por lado)
 // =============================================================
@@ -292,7 +292,7 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
         </div>
     );
 }
- 
+
 // Logo Haleon: usa /haleon-logo.png si lo colocas en public/; si no, muestra una
 // marca propia integrada (así nunca aparece una imagen rota).
 function HaleonLogo({ h = 24 }) {
@@ -313,7 +313,7 @@ function HaleonLogo({ h = 24 }) {
         </span>
     );
 }
- 
+
 // Lockup de logos: Haleon (marca/archivo) + Visión & Marketing
 function Logos({ h = 32 }) {
     return (
@@ -324,7 +324,7 @@ function Logos({ h = 32 }) {
         </div>
     );
 }
- 
+
 // =============================================================
 //  COMPONENTE PRINCIPAL
 // =============================================================
@@ -333,11 +333,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
     const [isLoading, setIsLoading] = useState(false);
     const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] });
     const [autoLoaded, setAutoLoaded] = useState(false); // Evita re-cargas múltiples
- 
+
     const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '' };
     const [filtersA, setFiltersA] = useState(emptyFilters); // Propuesta ANTERIOR
     const [filtersN, setFiltersN] = useState(emptyFilters); // Propuesta NUEVA
- 
+
     // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
         const wb = window.XLSX.read(buffer, { type: 'array' });
@@ -358,7 +358,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         setFiltersA(emptyFilters);
         setFiltersN(emptyFilters);
     };
- 
+
     // --- Auto-carga del Excel (desde /datos.xlsx en la carpeta public) ---
     useEffect(() => {
         if (!scriptsLoaded || autoLoaded) return;
@@ -384,7 +384,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         };
         fetchExcel();
     }, [scriptsLoaded, autoLoaded]);
- 
+
     // --- lectura del Excel (manual / Plan B) ---
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
@@ -406,7 +406,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         };
         reader.readAsArrayBuffer(file);
     };
- 
+
     // --- paletas de color INDEPENDIENTES por lado ---
     const colorMapA = useMemo(
         () => buildColorMap((dataState.bViejas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
@@ -416,11 +416,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
         () => buildColorMap((dataState.bNuevas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
         [dataState]
     );
- 
+
     // --- datos filtrados de forma INDEPENDIENTE ---
     const filteredA = useMemo(() => filterSide(dataState.bViejas, dataState.dViejas, filtersA), [dataState, filtersA]);
     const filteredN = useMemo(() => filterSide(dataState.bNuevas, dataState.dNuevas, filtersN), [dataState, filtersN]);
- 
+
     // --- KPIs (sin mezclar datos entre archivos) ---
     const kpis = useMemo(() => {
         const bV = filteredA.base, dV = filteredA.desp, bN = filteredN.base, dN = filteredN.desp;
@@ -438,12 +438,12 @@ function Dashboard({ scriptsLoaded, onHome }) {
             frecNuevas: bN.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
         };
     }, [filteredA, filteredN]);
- 
+
     const summaryViejas = useMemo(() => computeRouteSummary(filteredA.base, filteredA.desp, colorMapA), [filteredA, colorMapA]);
     const summaryNuevas = useMemo(() => computeRouteSummary(filteredN.base, filteredN.desp, colorMapN), [filteredN, colorMapN]);
     const regionalViejas = useMemo(() => computeRegionalSummary(filteredA.base, filteredA.desp), [filteredA]);
     const regionalNuevas = useMemo(() => computeRegionalSummary(filteredN.base, filteredN.desp), [filteredN]);
- 
+
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
         const over = s.pct > 100;
@@ -475,7 +475,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         );
     };
- 
+
     const RouteTableHead = () => (
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
@@ -489,11 +489,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         </thead>
     );
- 
+
     const emptyRow = (cols, msg) => (
         <tr><td colSpan={cols} className="text-center text-slate-400 py-8">{msg}</td></tr>
     );
- 
+
     // --- fila / encabezado del comparativo por REGIONAL ---
     const RegionalRow = ({ s }) => {
         const over = s.pctProm > 100;
@@ -520,7 +520,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         );
     };
- 
+
     const RegionalTableHead = () => (
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
@@ -534,7 +534,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         </thead>
     );
- 
+
     // --- directorio general (rutas nuevas, respeta el filtro del lado nuevo) ---
     const renderTableGeneral = () => {
         const rows = filteredN.base || [];
@@ -556,11 +556,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         ));
     };
- 
+
     return (
         <div className="min-h-screen bg-slate-100 font-sans p-6 overflow-x-hidden flex justify-center">
             <div className="w-full max-w-[1800px] flex flex-col gap-6">
- 
+
                 {/* HEADER */}
                 <header className="bg-white rounded-2xl p-6 shadow-sm flex flex-wrap gap-4 justify-between items-center border border-slate-200">
                     <div className="flex flex-col items-start">
@@ -592,7 +592,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         <Logos h={30} />
                     </div>
                 </header>
- 
+
                 {/* KPIS (comparan cada lado según su propio filtro) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-4">
                     <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" />
@@ -607,12 +607,12 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     <KPICard title="Ocupación Laboral Promedio"
                         valB={kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0}
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
-                        format="pct" />
+                        format="pct" inverse />
                 </div>
- 
+
                 {/* DOS COLUMNAS INDEPENDIENTES */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- 
+
                     {/* ===== LADO IZQUIERDO: ANTERIOR ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -644,7 +644,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </div>
                         </div>
                     </div>
- 
+
                     {/* ===== LADO DERECHO: OPTIMIZADA ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -678,7 +678,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </div>
                     </div>
                 </div>
- 
+
                 {/* COMPARATIVO POR REGIONAL */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[460px]">
@@ -708,7 +708,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </div>
                     </div>
                 </div>
- 
+
                 {/* DIRECTORIO GENERAL (rutas nuevas) */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[620px]">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-wrap gap-2 justify-between items-end">
@@ -734,12 +734,12 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </table>
                     </div>
                 </div>
- 
+
             </div>
         </div>
     );
 }
- 
+
 // =============================================================
 //  TARJETA KPI
 // =============================================================
@@ -751,7 +751,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         if (format === 'pct') return v.toFixed(1) + '%';
         return String(v);
     };
- 
+
     let deltaStr = '-', isGood = false, isNeutral = true;
     if (valB > 0) {
         const delta = ((valA - valB) / valB) * 100;
@@ -759,7 +759,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         isNeutral = Math.abs(delta) < 0.5;
         isGood = inverse ? delta < 0 : delta > 0;
     }
- 
+
     return (
         <div className="bg-white rounded-2xl p-4 xl:p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow overflow-hidden w-full">
             <h4 className="text-[10px] xl:text-xs font-bold text-slate-500 uppercase tracking-wide min-h-[2.5rem] leading-tight mb-2 line-clamp-2">{title}</h4>
@@ -776,7 +776,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         </div>
     );
 }
- 
+
 // =============================================================
 //  PORTADA / PANTALLA DE BIENVENIDA (con mapa de Colombia)
 // =============================================================
@@ -805,7 +805,7 @@ const PORTADA_RUTAS = [
     [0, 1],
     [0, 12, 13],
 ];
- 
+
 function PortadaMap() {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
@@ -818,12 +818,12 @@ function PortadaMap() {
         });
         mapInstance.current = map;
         window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
- 
+
         PORTADA_RUTAS.forEach((seq) => {
             const pts = seq.map((i) => [PORTADA_CIUDADES[i].lat, PORTADA_CIUDADES[i].lng]);
             window.L.polyline(pts, { color: '#3fa000', weight: 2.5, opacity: 0.8, dashArray: '4 9', lineCap: 'round', className: 'pf-route', interactive: false }).addTo(map);
         });
- 
+
         PORTADA_CIUDADES.forEach((c) => {
             if (c.hub) {
                 window.L.circleMarker([c.lat, c.lng], { radius: 13, stroke: false, fillColor: '#56D400', fillOpacity: 0.22, className: 'pf-halo', interactive: false }).addTo(map);
@@ -833,13 +833,13 @@ function PortadaMap() {
                 window.L.marker([c.lat, c.lng], { interactive: false, icon: window.L.divIcon({ className: 'pf-label', html: `<span>${c.n}</span>`, iconSize: [0, 0] }) }).addTo(map);
             }
         });
- 
+
         const bounds = window.L.latLngBounds(PORTADA_CIUDADES.map((c) => [c.lat, c.lng]));
         const fit = () => { map.invalidateSize(); map.fitBounds(bounds, { padding: [60, 60] }); };
         fit();
         window.addEventListener('resize', fit);
         map._pfFit = fit;
- 
+
         return () => {
             window.removeEventListener('resize', map._pfFit);
             map.remove();
@@ -848,7 +848,7 @@ function PortadaMap() {
     }, []);
     return <div ref={mapRef} className="absolute inset-0 w-full h-full" style={{ background: '#eef2f7' }} />;
 }
- 
+
 function Portada({ onEnter, scriptsLoaded }) {
     return (
         <div className="min-h-screen relative overflow-hidden bg-slate-100 font-sans">
@@ -866,15 +866,15 @@ function Portada({ onEnter, scriptsLoaded }) {
                 }
                 .leaflet-container { background: #eef2f7 !important; }
             `}</style>
- 
+
             {/* MAPA DE FONDO */}
             {scriptsLoaded ? <PortadaMap /> : <div className="absolute inset-0" style={{ background: '#eef2f7' }} />}
- 
+
             {/* velos claros para legibilidad */}
             <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(90deg, rgba(248,250,252,0.97) 0%, rgba(248,250,252,0.88) 36%, rgba(248,250,252,0.45) 68%, rgba(248,250,252,0.12) 100%)' }} />
             <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(248,250,252,0.85) 0%, transparent 20%, transparent 72%, rgba(248,250,252,0.92) 100%)' }} />
             <div className="absolute -top-32 -left-24 w-[480px] h-[480px] rounded-full blur-3xl pointer-events-none" style={{ background: 'rgba(86,212,0,0.14)' }} />
- 
+
             {/* CONTENIDO */}
             <div className="relative z-10 min-h-screen flex flex-col">
                 {/* top bar */}
@@ -887,7 +887,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                         {scriptsLoaded ? 'Entorno listo · datos en vivo' : 'Preparando entorno…'}
                     </div>
                 </div>
- 
+
                 {/* hero */}
                 <div className="flex-1 flex items-center px-6 md:px-12">
                     <div className="max-w-2xl">
@@ -904,7 +904,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                             Analiza, filtra y compara dos propuestas de cobertura comercial a nivel nacional:
                             eficiencia, ocupación laboral y distribución geoespacial de cada usuario.
                         </p>
- 
+
                         <div className="mt-7 flex flex-wrap gap-3" style={{ animation: 'pf 1.1s ease-out both' }}>
                             {['Filtros independientes', 'Mapas por usuario', 'KPIs comparativos'].map((t) => (
                                 <span key={t} className="px-4 py-2 rounded-full text-sm font-medium text-slate-700 bg-white border border-slate-200 shadow-sm">
@@ -912,7 +912,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                                 </span>
                             ))}
                         </div>
- 
+
                         <div className="mt-10 flex flex-wrap items-center gap-4" style={{ animation: 'pf 1.25s ease-out both' }}>
                             <button
                                 onClick={onEnter}
@@ -924,7 +924,7 @@ function Portada({ onEnter, scriptsLoaded }) {
                         </div>
                     </div>
                 </div>
- 
+
                 {/* footer mini-stats */}
                 <div className="px-6 md:px-12 py-6 border-t border-slate-200" style={{ animation: 'pf 1.4s ease-out both' }}>
                     <div className="flex flex-wrap items-end gap-8 md:gap-12">
@@ -941,14 +941,14 @@ function Portada({ onEnter, scriptsLoaded }) {
         </div>
     );
 }
- 
+
 // =============================================================
 //  RAÍZ: muestra la portada y, al entrar, el dashboard
 // =============================================================
 export default function App() {
     const [view, setView] = useState('portada');
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
- 
+
     // Precarga Leaflet + SheetJS mientras el usuario está en la portada
     useEffect(() => {
         const loadScript = (src) => new Promise((resolve) => {
@@ -967,7 +967,7 @@ export default function App() {
             loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js')
         ]).then(() => setScriptsLoaded(true));
     }, []);
- 
+
     if (view === 'portada') {
         return <Portada onEnter={() => setView('dashboard')} scriptsLoaded={scriptsLoaded} />;
     }
