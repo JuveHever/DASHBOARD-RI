@@ -973,3 +973,4 @@ export default function App() {
     }
     return <Dashboard scriptsLoaded={scriptsLoaded} onHome={() => setView('portada')} />;
 }
+
