@@ -578,7 +578,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         return rowsToRender.slice(0, 500).map((row, idx) => {
             const rawImp = get(row, F.impTotal);
             const impFormatted = rawImp !== undefined && rawImp !== '' 
-                ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(parseNum(rawImp)) 
+                ? new Intl.NumberFormat('es-CO', { style: 'percent', minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(parseNum(rawImp)) 
                 : '-';
             const decil = String(get(row, F.decil) ?? '-');
 
