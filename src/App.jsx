@@ -31,8 +31,7 @@ const parseIntSafe = (v) => {
     return isFinite(n) ? n : 0;
 };
 
-// Diccionario de columnas. Cubre AMBOS archivos (anterior y nuevo); como cada
-// fila solo trae uno de los alias, get() devuelve el primero presente.
+// Diccionario de columnas. Cubre AMBOS archivos y hoja de eliminados
 const F = {
     lat:        ['LATITUD', 'LATITUD ', 'Latitud', 'LAT'],
     lng:        ['LONGITUD', 'LONGITUD ', 'Longitud', 'LNG', 'LON'],
@@ -41,11 +40,13 @@ const F = {
     regional:   ['REGIONAL VYM', 'REGIONAL', 'REGIONAL ', 'REGION', 'REGIÓN', 'Regional'],
     supervisor: ['SUPERVISOR', 'NOMBRE SUPERVISOR ', 'NOMBRE SUPERVISOR', 'USUARIO SUPERVISOR', 'Supervisor'],
     pdv:        ['PUNTO DE VENTA', 'PUNTO DE VENTA ', 'Punto de Venta'],
-    codigo:     ['Codigo  PDV', 'Codigo PDV', 'CODIGO PDV', 'Código PDV', 'CÓDIGO PDV'],
-    cadena:     ['CRUCE', 'CADENA', 'SUBCADENA', 'Cadena'],
+    codigo:     ['Codigo  PDV', 'Codigo PDV', 'CODIGO PDV', 'Código PDV', 'CÓDIGO PDV', 'ID', 'Id'], // Añadido ID
+    cadena:     ['CRUCE', 'CADENA', 'SUBCADENA', 'Cadena', 'TIPO CLIENTE'], // Añadido TIPO CLIENTE
     frecuencia: ['FRECUENCIA', 'FRECUENCIA ', 'Frecuencia'],
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
+    decil:      ['DECIL', 'Decil', 'decil'],
+    impTotal:   ['IMP TOTAL', 'Imp Total', 'IMP', 'IMPORTE TOTAL', 'Imp total'],
 };
 
 const get = (row, keys) => {
@@ -293,8 +294,7 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
     );
 }
 
-// Logo Haleon: usa /haleon-logo.png si lo colocas en public/; si no, muestra una
-// marca propia integrada (así nunca aparece una imagen rota).
+// Logo Haleon
 function HaleonLogo({ h = 24 }) {
     const [ok, setOk] = useState(true);
     if (ok) {
@@ -314,7 +314,7 @@ function HaleonLogo({ h = 24 }) {
     );
 }
 
-// Lockup de logos: Haleon (marca/archivo) + Visión & Marketing
+// Lockup de logos
 function Logos({ h = 32 }) {
     return (
         <div className="flex items-center gap-3">
@@ -331,20 +331,33 @@ function Logos({ h = 32 }) {
 function Dashboard({ scriptsLoaded, onHome }) {
     const [status, setStatus] = useState('Esperando archivo Excel...');
     const [isLoading, setIsLoading] = useState(false);
-    const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] });
-    const [autoLoaded, setAutoLoaded] = useState(false); // Evita re-cargas múltiples
+    const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [], eliminados: [] });
+    const [autoLoaded, setAutoLoaded] = useState(false);
 
     const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '' };
-    const [filtersA, setFiltersA] = useState(emptyFilters); // Propuesta ANTERIOR
-    const [filtersN, setFiltersN] = useState(emptyFilters); // Propuesta NUEVA
+    const [filtersA, setFiltersA] = useState(emptyFilters);
+    const [filtersN, setFiltersN] = useState(emptyFilters);
+    
+    // Filtro específico para la tabla del directorio general
+    const [coberturaFilter, setCoberturaFilter] = useState('cubiertos'); // 'cubiertos' | 'eliminados' | 'todos'
 
     // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
         const wb = window.XLSX.read(buffer, { type: 'array' });
-        const raw = { bNuevas: [], dNuevas: [], bViejas: [], dViejas: [] };
+        const raw = { bNuevas: [], dNuevas: [], bViejas: [], dViejas: [], eliminados: [] };
+        
         wb.SheetNames.forEach((sn) => {
             const sd = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
             if (!sd.length) return;
+
+            const U = String(sn).toUpperCase();
+            
+            // Detectar la hoja nueva de eliminados
+            if (U.includes('IDS ELIMINADOS') || U.includes('ELIMINADOS')) {
+                raw.eliminados = raw.eliminados.concat(sd);
+                return;
+            }
+
             const { side, isDespSheet } = classifySheet(sn, sd);
             if (side === 'nuevo') {
                 if (isDespSheet) raw.dNuevas = raw.dNuevas.concat(sd);
@@ -354,19 +367,20 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 else raw.bViejas = raw.bViejas.concat(sd);
             }
         });
+        
         setDataState(raw);
         setFiltersA(emptyFilters);
         setFiltersN(emptyFilters);
+        setCoberturaFilter('cubiertos'); // Reset al cargar
     };
 
-    // --- Auto-carga del Excel (desde /datos.xlsx en la carpeta public) ---
+    // --- Auto-carga del Excel ---
     useEffect(() => {
         if (!scriptsLoaded || autoLoaded) return;
         const fetchExcel = async () => {
             try {
                 setIsLoading(true);
                 setStatus('⏳ Auto-cargando datos...');
-                // 📌 Coloca tu Excel en /public/datos.xlsx
                 const fileUrl = '/datos.xlsx';
                 const response = await fetch(fileUrl + '?t=' + new Date().getTime(), { cache: 'no-store' });
                 if (!response.ok) throw new Error(`HTTP ${response.status} (No encontrado)`);
@@ -385,7 +399,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         fetchExcel();
     }, [scriptsLoaded, autoLoaded]);
 
-    // --- lectura del Excel (manual / Plan B) ---
+    // --- lectura del Excel (manual) ---
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file || !window.XLSX) return;
@@ -420,8 +434,14 @@ function Dashboard({ scriptsLoaded, onHome }) {
     // --- datos filtrados de forma INDEPENDIENTE ---
     const filteredA = useMemo(() => filterSide(dataState.bViejas, dataState.dViejas, filtersA), [dataState, filtersA]);
     const filteredN = useMemo(() => filterSide(dataState.bNuevas, dataState.dNuevas, filtersN), [dataState, filtersN]);
+    
+    // Filtrar los eliminados usando los mismos filtros base que "Nuevas" (para mantener concordancia de ciudad/regional)
+    const filteredEliminados = useMemo(() => {
+        if (!dataState.eliminados) return [];
+        return dataState.eliminados.filter(r => rowMatches(r, filtersN));
+    }, [dataState.eliminados, filtersN]);
 
-    // --- KPIs (sin mezclar datos entre archivos) ---
+    // --- KPIs ---
     const kpis = useMemo(() => {
         const bV = filteredA.base, dV = filteredA.desp, bN = filteredN.base, dN = filteredN.desp;
         const despSrcV = dV.length ? dV : bV;
@@ -535,26 +555,58 @@ function Dashboard({ scriptsLoaded, onHome }) {
         </thead>
     );
 
-    // --- directorio general (rutas nuevas, respeta el filtro del lado nuevo) ---
+    // Preparar filas para la tabla del directorio general
+    const rowsToRender = useMemo(() => {
+        let rows = [];
+        if (coberturaFilter === 'cubiertos') {
+            rows = (filteredN.base || []).map(r => ({ ...r, _status: 'cubierto' }));
+        } else if (coberturaFilter === 'eliminados') {
+            rows = (filteredEliminados || []).map(r => ({ ...r, _status: 'eliminado' }));
+        } else {
+            rows = [
+                ...(filteredN.base || []).map(r => ({ ...r, _status: 'cubierto' })),
+                ...(filteredEliminados || []).map(r => ({ ...r, _status: 'eliminado' }))
+            ];
+        }
+        return rows;
+    }, [filteredN.base, filteredEliminados, coberturaFilter]);
+
+    // --- directorio general (rutas nuevas, con Decil e Imp Total) ---
     const renderTableGeneral = () => {
-        const rows = filteredN.base || [];
-        if (rows.length === 0) return emptyRow(7, 'Esperando archivo Excel para mostrar el detalle de puntos de venta...');
-        return rows.slice(0, 500).map((row, idx) => (
-            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td className="p-3 text-sm text-slate-600">{String(get(row, F.codigo) ?? '-')}</td>
-                <td className="p-3 text-sm font-medium text-slate-800">{String(get(row, F.cadena) ?? '-')}</td>
-                <td className="p-3 text-sm text-slate-600 truncate max-w-xs">{String(get(row, F.pdv) ?? '-')}</td>
-                <td className="p-3 text-sm text-slate-600">{String(get(row, F.ciudad) ?? '-')}</td>
-                <td className="p-3 text-sm">
-                    <span className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorMapN[String(get(row, F.ruta) ?? '').trim()] || stringToColor(get(row, F.ruta)) }} />
-                        {String(get(row, F.ruta) ?? 'Sin Asignar')}
-                    </span>
-                </td>
-                <td className="p-3 text-sm text-center text-slate-600">{String(get(row, F.frecuencia) ?? '-')}</td>
-                <td className="p-3 text-sm font-semibold text-[#56D400]">{parseNum(get(row, F.hrs)).toFixed(2)}h</td>
-            </tr>
-        ));
+        if (rowsToRender.length === 0) return emptyRow(9, 'No hay datos para mostrar con el filtro actual...');
+        
+        return rowsToRender.slice(0, 500).map((row, idx) => {
+            const rawImp = get(row, F.impTotal);
+            const impFormatted = rawImp !== undefined && rawImp !== '' 
+                ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(parseNum(rawImp)) 
+                : '-';
+            const decil = String(get(row, F.decil) ?? '-');
+
+            return (
+                <tr key={idx} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${row._status === 'eliminado' ? 'bg-red-50/40' : ''}`}>
+                    <td className="p-3 text-sm text-slate-600">{String(get(row, F.codigo) ?? '-')}</td>
+                    <td className="p-3 text-sm font-medium text-slate-800">{String(get(row, F.cadena) ?? '-')}</td>
+                    <td className="p-3 text-sm text-slate-600 truncate max-w-xs">{String(get(row, F.pdv) ?? '-')}</td>
+                    <td className="p-3 text-sm text-slate-600">{String(get(row, F.ciudad) ?? '-')}</td>
+                    <td className="p-3 text-sm">
+                        <span className="flex items-center gap-2">
+                            {row._status === 'cubierto' ? (
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorMapN[String(get(row, F.ruta) ?? '').trim()] || stringToColor(get(row, F.ruta)) }} />
+                            ) : (
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-red-500" title="Eliminado/No Cubierto" />
+                            )}
+                            <span className={row._status === 'eliminado' ? 'text-red-700 font-medium' : ''}>
+                                {String(get(row, F.ruta) ?? 'Sin Asignar')}
+                            </span>
+                        </span>
+                    </td>
+                    <td className="p-3 text-sm text-center text-slate-600">{String(get(row, F.frecuencia) ?? '-')}</td>
+                    <td className="p-3 text-sm font-semibold text-[#56D400]">{parseNum(get(row, F.hrs)).toFixed(2)}h</td>
+                    <td className="p-3 text-sm text-center font-medium text-slate-700">{decil}</td>
+                    <td className="p-3 text-sm text-right font-medium text-slate-700">{impFormatted}</td>
+                </tr>
+            );
+        });
     };
 
     return (
@@ -649,7 +701,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     <div className="flex flex-col gap-4">
                         <FilterBar
                             title="Filtros · Propuesta Optimizada"
-                            subtitle="Aplican solo a esta propuesta"
+                            subtitle="Aplican solo a esta propuesta (También afectan a Eliminados)"
                             accent="border-t-4 border-t-[#56D400]"
                             baseRows={dataState.bNuevas}
                             filters={filtersN}
@@ -709,12 +761,26 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     </div>
                 </div>
 
-                {/* DIRECTORIO GENERAL (rutas nuevas) */}
+                {/* DIRECTORIO GENERAL (rutas nuevas + filtro de cobertura + columnas nuevas) */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[620px]">
-                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-wrap gap-2 justify-between items-end">
-                        <h3 className="text-xl font-bold text-slate-800">Directorio de Puntos de Venta (Rutas Nuevas)</h3>
-                        <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                            Mostrando {Math.min(500, (filteredN.base || []).length)} de {(filteredN.base || []).length}
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
+                        <div>
+                            <h3 className="text-xl font-bold text-slate-800">Directorio de Puntos de Venta (Rutas Nuevas)</h3>
+                            <div className="flex items-center gap-3 mt-3">
+                                <label className="text-sm font-semibold text-slate-500">Estado de Cobertura:</label>
+                                <select
+                                    value={coberturaFilter}
+                                    onChange={(e) => setCoberturaFilter(e.target.value)}
+                                    className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] focus:border-[#56D400] outline-none"
+                                >
+                                    <option value="cubiertos">Cubiertos</option>
+                                    <option value="eliminados">No Cubiertos (Eliminados)</option>
+                                    <option value="todos">Todos</option>
+                                </select>
+                            </div>
+                        </div>
+                        <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full whitespace-nowrap">
+                            Mostrando {Math.min(500, rowsToRender.length)} de {rowsToRender.length}
                         </span>
                     </div>
                     <div className="overflow-y-auto flex-1 px-6 pb-4">
@@ -728,6 +794,8 @@ function Dashboard({ scriptsLoaded, onHome }) {
                                     <th className="p-4 font-semibold bg-slate-100 border-b border-slate-200">Ruta Asignada</th>
                                     <th className="p-4 font-semibold bg-slate-100 border-b border-slate-200 text-center">Frecuencia</th>
                                     <th className="p-4 font-semibold bg-slate-100 border-b border-slate-200">Hrs Servicio</th>
+                                    <th className="p-4 font-semibold bg-slate-100 border-b border-slate-200 text-center">Decil</th>
+                                    <th className="p-4 font-semibold bg-slate-100 border-b border-slate-200 text-right">Imp Total</th>
                                 </tr>
                             </thead>
                             <tbody>{renderTableGeneral()}</tbody>
@@ -943,13 +1011,12 @@ function Portada({ onEnter, scriptsLoaded }) {
 }
 
 // =============================================================
-//  RAÍZ: muestra la portada y, al entrar, el dashboard
+//  RAÍZ
 // =============================================================
 export default function App() {
     const [view, setView] = useState('portada');
     const [scriptsLoaded, setScriptsLoaded] = useState(false);
 
-    // Precarga Leaflet + SheetJS mientras el usuario está en la portada
     useEffect(() => {
         const loadScript = (src) => new Promise((resolve) => {
             if ([...document.scripts].some((s) => s.src === src)) { resolve(); return; }
@@ -973,4 +1040,3 @@ export default function App() {
     }
     return <Dashboard scriptsLoaded={scriptsLoaded} onHome={() => setView('portada')} />;
 }
-
