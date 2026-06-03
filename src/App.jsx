@@ -341,19 +341,19 @@ function Dashboard({ scriptsLoaded, onHome }) {
     const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '', ACTIVIDAD: '' };
     const [filtersA, setFiltersA] = useState(emptyFilters);
     const [filtersN, setFiltersN] = useState(emptyFilters);
-
+ 
     // Filtro específico para la tabla del directorio general
     const [coberturaFilter, setCoberturaFilter] = useState('cubiertos'); // 'cubiertos' | 'eliminados' | 'todos'
     // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
         const wb = window.XLSX.read(buffer, { type: 'array' });
         const raw = { bNuevas: [], dNuevas: [], bViejas: [], dViejas: [], eliminados: [] };
-
+ 
         wb.SheetNames.forEach((sn) => {
             const sd = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
             if (!sd.length) return;
             const U = String(sn).toUpperCase();
-
+ 
             // Detectar la hoja nueva de eliminados
             if (U.includes('IDS ELIMINADOS') || U.includes('ELIMINADOS')) {
                 raw.eliminados = raw.eliminados.concat(sd);
@@ -368,7 +368,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 else raw.bViejas = raw.bViejas.concat(sd);
             }
         });
-
+ 
         setDataState(raw);
         setFiltersA(emptyFilters);
         setFiltersN(emptyFilters);
@@ -431,7 +431,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
     // --- datos filtrados de forma INDEPENDIENTE ---
     const filteredA = useMemo(() => filterSide(dataState.bViejas, dataState.dViejas, filtersA), [dataState, filtersA]);
     const filteredN = useMemo(() => filterSide(dataState.bNuevas, dataState.dNuevas, filtersN), [dataState, filtersN]);
-
+ 
     // Filtrar los eliminados usando los mismos filtros base que "Nuevas" (para mantener concordancia de ciudad/regional/actividad)
     const filteredEliminados = useMemo(() => {
         if (!dataState.eliminados) return [];
@@ -476,9 +476,9 @@ function Dashboard({ scriptsLoaded, onHome }) {
     }, [eliminadosPorRegional]);
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
-        const over = s.pct > 100;
-        const warn = s.pct > 85 && s.pct <= 100;
-        const barColor = over ? 'bg-red-500' : warn ? 'bg-amber-400' : 'bg-[#56D400]';
+        const isGreen = s.pct >= 98 && s.pct <= 101;
+        const isRed = s.pct > 101;
+        const barColor = isRed ? 'bg-red-500' : isGreen ? 'bg-[#56D400]' : 'bg-amber-400';
         return (
             <tr className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="p-3 text-sm font-medium text-slate-800">
@@ -497,8 +497,8 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         <div className="w-20 bg-slate-200 rounded-full h-2 overflow-hidden shrink-0">
                             <div className={`h-2 rounded-full ${barColor}`} style={{ width: `${Math.min(s.pct, 100)}%` }} />
                         </div>
-                        <span className={over ? 'text-red-600 font-bold' : 'text-slate-700'}>
-                            {s.pct.toFixed(1)}%{over ? ' ⚠' : ''}
+                        <span className={isRed ? 'text-red-600 font-bold' : 'text-slate-700'}>
+                            {s.pct.toFixed(1)}%{isRed ? ' ⚠' : ''}
                         </span>
                     </div>
                 </td>
@@ -578,7 +578,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
     // --- directorio general (rutas nuevas, con Decil e Imp Total) ---
     const renderTableGeneral = () => {
         if (rowsToRender.length === 0) return emptyRow(9, 'No hay datos para mostrar con el filtro actual...');
-
+ 
         return rowsToRender.slice(0, 500).map((row, idx) => {
             const rawImp = get(row, F.impTotal);
             const impFormatted = rawImp !== undefined && rawImp !== ''
@@ -761,7 +761,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
                         <h3 className="text-xl font-bold text-slate-800">Puntos de Venta Eliminados por Regional</h3>
                         <p className="text-sm text-slate-500 mt-1">
-                            Comparación de la base optimizada (cubiertos) vs. los PDV eliminados, agrupados por <span className="font-semibold text-slate-700">REGIONAL</span>. Responde a los filtros de la propuesta optimizada.
+                            Comparación de la base optimizada (cubiertos) vs. los PDV eliminados, agrupados por <span className="font-semibold text-slate-700">REGIONAL VYM</span>. Responde a los filtros de la propuesta optimizada.
                         </p>
                     </div>
                     <div className="overflow-y-auto flex-1 px-6 pb-4">
