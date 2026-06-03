@@ -761,7 +761,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
                         <h3 className="text-xl font-bold text-slate-800">Puntos de Venta Eliminados por Regional</h3>
                         <p className="text-sm text-slate-500 mt-1">
-                            Comparación de la base optimizada (cubiertos) vs. los PDV eliminados, agrupados por <span className="font-semibold text-slate-700">REGIONAL VYM</span>. Responde a los filtros de la propuesta optimizada.
+                            Comparación de la base optimizada (cubiertos) vs. los PDV eliminados, agrupados por <span className="font-semibold text-slate-700">REGIONAL</span>. Responde a los filtros de la propuesta optimizada.
                         </p>
                     </div>
                     <div className="overflow-y-auto flex-1 px-6 pb-4">
