@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+
 // =============================================================
 //  UTILIDADES
 // =============================================================
+
 const norm = (v) => String(v ?? '').trim().toUpperCase();
+
 // Parseo numérico tolerante a comas decimales / miles (Excel en español)
 const parseNum = (v) => {
     if (v === undefined || v === null || v === '') return 0;
@@ -12,6 +15,7 @@ const parseNum = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : 0;
 };
+
 // Coordenadas: aceptan número o texto con coma decimal (ej. "4,5399684")
 const parseCoord = (v) => {
     if (typeof v === 'number') return isFinite(v) ? v : NaN;
@@ -21,11 +25,13 @@ const parseCoord = (v) => {
     const n = parseFloat(s);
     return isFinite(n) ? n : NaN;
 };
+
 const parseIntSafe = (v) => {
     if (typeof v === 'number') return Math.round(v);
     const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10);
     return isFinite(n) ? n : 0;
 };
+
 // Diccionario de columnas. Cubre AMBOS archivos y hoja de eliminados
 const F = {
     lat:        ['LATITUD', 'LATITUD ', 'Latitud', 'LAT'],
@@ -44,6 +50,7 @@ const F = {
     decil:      ['DECIL', 'Decil', 'decil'],
     impTotal:   ['IMP TOTAL', 'Imp Total', 'IMP', 'IMPORTE TOTAL', 'Imp total'],
 };
+
 const get = (row, keys) => {
     if (!row) return undefined;
     for (const k of keys) {
@@ -51,6 +58,7 @@ const get = (row, keys) => {
     }
     return undefined;
 };
+
 // Fallback de color (rutas sin entrada en la paleta)
 const stringToColor = (str) => {
     if (!str) return '#94a3b8';
@@ -61,6 +69,7 @@ const stringToColor = (str) => {
     for (let i = 0; i < 3; i++) color += ('00' + ((hash >> (i * 8)) & 0xFF).toString(16)).substr(-2);
     return color;
 };
+
 // Paleta estable y bien diferenciada para N usuarios/rutas
 const buildColorMap = (routes) => {
     const sorted = [...new Set(routes.map((r) => String(r).trim()).filter(Boolean))]
@@ -75,16 +84,20 @@ const buildColorMap = (routes) => {
     });
     return map;
 };
+
 // ¿La fila cumple los filtros indicados?
 const rowMatches = (row, f) => {
     if (f.CIUDAD && norm(get(row, F.ciudad)) !== norm(f.CIUDAD)) return false;
     if (f.REGIONAL && norm(get(row, F.regional)) !== norm(f.REGIONAL)) return false;
+    if (f.CADENA && norm(get(row, F.cadena)) !== norm(f.CADENA)) return false; // <- Filtro Cadena agregado
     if (f.RUTA && norm(get(row, F.ruta)) !== norm(f.RUTA)) return false;
     if (f.SUPERVISOR && norm(get(row, F.supervisor)) !== norm(f.SUPERVISOR)) return false;
     if (f.ACTIVIDAD && norm(get(row, F.actividad)) !== norm(f.ACTIVIDAD)) return false;
     return true;
 };
-const FIELD_KEYS = { CIUDAD: F.ciudad, REGIONAL: F.regional, RUTA: F.ruta, SUPERVISOR: F.supervisor, ACTIVIDAD: F.actividad };
+
+const FIELD_KEYS = { CIUDAD: F.ciudad, REGIONAL: F.regional, CADENA: F.cadena, RUTA: F.ruta, SUPERVISOR: F.supervisor, ACTIVIDAD: F.actividad }; // <- Cadena agregada a las keys
+
 // Opciones de un filtro (en cascada con los demás filtros activos del MISMO lado)
 const optionsFor = (baseRows, filters, field) => {
     const others = { ...filters, [field]: '' };
@@ -95,6 +108,7 @@ const optionsFor = (baseRows, filters, field) => {
     });
     return [...set].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 };
+
 // Aplica filtros a un lado (base + desplazamiento) de forma independiente
 const filterSide = (base, desp, filters) => {
     const anyActive = Object.values(filters).some(Boolean);
@@ -104,6 +118,7 @@ const filterSide = (base, desp, filters) => {
     const d = (desp || []).filter((r) => allowed.has(norm(get(r, F.ruta))));
     return { base: b, desp: d };
 };
+
 // Resumen por ruta (idéntico para ambos lados). El desplazamiento sale de la
 // hoja dedicada si existe; si no, de la columna DESPLAZAMIENTO de la base.
 const computeRouteSummary = (baseRows, despRows, colorMap) => {
@@ -130,6 +145,7 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
         })
         .sort((a, b) => b.total - a.total);
 };
+
 // Resumen por REGIONAL (para el comparativo). El % de ocupación es el promedio
 // por cupo de la regional: (servicio + desplazamiento) / (cupos * 168).
 const computeRegionalSummary = (baseRows, despRows) => {
@@ -169,6 +185,7 @@ const computeRegionalSummary = (baseRows, despRows) => {
         })
         .sort((a, b) => b.pdv - a.pdv);
 };
+
 // Comparativo de PDV ELIMINADOS por REGIONAL: base nueva (cubiertos) vs ids eliminados.
 // Ambas fuentes contienen la columna "REGIONAL VYM" (cubierta por F.regional).
 const computeEliminadosPorRegional = (baseNuevas, eliminados) => {
@@ -198,6 +215,7 @@ const computeEliminadosPorRegional = (baseNuevas, eliminados) => {
         })
         .sort((a, b) => b.eliminados - a.eliminados);
 };
+
 // Clasifica cada hoja del Excel: lado (anterior/nuevo) y si es hoja de desplazamiento.
 // Usa el nombre y, como respaldo, las columnas (más robusto).
 const classifySheet = (name, rows) => {
@@ -215,9 +233,11 @@ const classifySheet = (name, rows) => {
     }
     return { side, isDespSheet };
 };
+
 // =============================================================
 //  MAPA (Leaflet) — cada lado usa SUS PROPIAS coordenadas
 // =============================================================
+
 const MapComponent = ({ data, colorMap }) => {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
@@ -260,11 +280,13 @@ const MapComponent = ({ data, colorMap }) => {
     }, [data, colorMap]);
     return <div ref={mapRef} className="w-full h-full bg-slate-100 z-0 relative" />;
 };
+
 // =============================================================
 //  BARRA DE FILTROS (independiente por lado)
 // =============================================================
+
 function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters }) {
-    const fields = ['CIUDAD', 'REGIONAL', 'RUTA', 'SUPERVISOR', 'ACTIVIDAD'];
+    const fields = ['CIUDAD', 'REGIONAL', 'CADENA', 'RUTA', 'SUPERVISOR', 'ACTIVIDAD']; // <- CADENA AGREGADA
     const active = Object.values(filters).filter(Boolean).length;
     const disabled = !baseRows || baseRows.length === 0;
     return (
@@ -275,14 +297,15 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
                     {subtitle && <p className="text-[11px] text-slate-400">{subtitle}</p>}
                 </div>
                 <button
-                    onClick={() => setFilters({ CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '', ACTIVIDAD: '' })}
+                    onClick={() => setFilters({ CIUDAD: '', REGIONAL: '', CADENA: '', RUTA: '', SUPERVISOR: '', ACTIVIDAD: '' })} // <- CADENA AGREGADA AL RESET
                     disabled={active === 0}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                 >
                     Limpiar {active > 0 ? `(${active})` : ''}
                 </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            {/* Cambiado grid-cols a 6 para acomodar la nueva columna CADENA */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                 {fields.map((field) => (
                     <div key={field} className="flex flex-col gap-1 min-w-0">
                         <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{field}</label>
@@ -301,6 +324,7 @@ function FilterBar({ title, subtitle, accent = '', baseRows, filters, setFilters
         </div>
     );
 }
+
 // Logo Haleon
 function HaleonLogo({ h = 24 }) {
     const [ok, setOk] = useState(true);
@@ -320,6 +344,7 @@ function HaleonLogo({ h = 24 }) {
         </span>
     );
 }
+
 // Lockup de logos
 function Logos({ h = 32 }) {
     return (
@@ -330,20 +355,26 @@ function Logos({ h = 32 }) {
         </div>
     );
 }
+
 // =============================================================
 //  COMPONENTE PRINCIPAL
 // =============================================================
+
 function Dashboard({ scriptsLoaded, onHome }) {
     const [status, setStatus] = useState('Esperando archivo Excel...');
     const [isLoading, setIsLoading] = useState(false);
     const [dataState, setDataState] = useState({ bNuevas: [], dNuevas: [], bViejas: [], dViejas: [], eliminados: [] });
     const [autoLoaded, setAutoLoaded] = useState(false);
-    const emptyFilters = { CIUDAD: '', REGIONAL: '', RUTA: '', SUPERVISOR: '', ACTIVIDAD: '' };
+    
+    // Cadena agregada a los empty filters
+    const emptyFilters = { CIUDAD: '', REGIONAL: '', CADENA: '', RUTA: '', SUPERVISOR: '', ACTIVIDAD: '' };
+    
     const [filtersA, setFiltersA] = useState(emptyFilters);
     const [filtersN, setFiltersN] = useState(emptyFilters);
  
     // Filtro específico para la tabla del directorio general
     const [coberturaFilter, setCoberturaFilter] = useState('cubiertos'); // 'cubiertos' | 'eliminados' | 'todos'
+
     // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
         const wb = window.XLSX.read(buffer, { type: 'array' });
@@ -374,6 +405,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         setFiltersN(emptyFilters);
         setCoberturaFilter('cubiertos'); // Reset al cargar
     };
+
     // --- Auto-carga del Excel ---
     useEffect(() => {
         if (!scriptsLoaded || autoLoaded) return;
@@ -398,6 +430,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         };
         fetchExcel();
     }, [scriptsLoaded, autoLoaded]);
+
     // --- lectura del Excel (manual) ---
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
@@ -419,6 +452,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         };
         reader.readAsArrayBuffer(file);
     };
+
     // --- paletas de color INDEPENDIENTES por lado ---
     const colorMapA = useMemo(
         () => buildColorMap((dataState.bViejas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
@@ -428,6 +462,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         () => buildColorMap((dataState.bNuevas || []).map((r) => get(r, F.ruta)).filter(Boolean)),
         [dataState]
     );
+
     // --- datos filtrados de forma INDEPENDIENTE ---
     const filteredA = useMemo(() => filterSide(dataState.bViejas, dataState.dViejas, filtersA), [dataState, filtersA]);
     const filteredN = useMemo(() => filterSide(dataState.bNuevas, dataState.dNuevas, filtersN), [dataState, filtersN]);
@@ -437,6 +472,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         if (!dataState.eliminados) return [];
         return dataState.eliminados.filter(r => rowMatches(r, filtersN));
     }, [dataState.eliminados, filtersN]);
+
     // --- KPIs ---
     const kpis = useMemo(() => {
         const bV = filteredA.base, dV = filteredA.desp, bN = filteredN.base, dN = filteredN.desp;
@@ -454,15 +490,18 @@ function Dashboard({ scriptsLoaded, onHome }) {
             frecNuevas: bN.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
         };
     }, [filteredA, filteredN]);
+
     const summaryViejas = useMemo(() => computeRouteSummary(filteredA.base, filteredA.desp, colorMapA), [filteredA, colorMapA]);
     const summaryNuevas = useMemo(() => computeRouteSummary(filteredN.base, filteredN.desp, colorMapN), [filteredN, colorMapN]);
     const regionalViejas = useMemo(() => computeRegionalSummary(filteredA.base, filteredA.desp), [filteredA]);
     const regionalNuevas = useMemo(() => computeRegionalSummary(filteredN.base, filteredN.desp), [filteredN]);
+
     // --- comparativo de PDV eliminados por regional (base nueva vs eliminados) ---
     const eliminadosPorRegional = useMemo(
         () => computeEliminadosPorRegional(filteredN.base, filteredEliminados),
         [filteredN.base, filteredEliminados]
     );
+
     const totalesElim = useMemo(() => {
         return eliminadosPorRegional.reduce(
             (acc, r) => {
@@ -474,6 +513,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             { cubiertos: 0, eliminados: 0, original: 0 }
         );
     }, [eliminadosPorRegional]);
+
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
         const isGreen = s.pct >= 98 && s.pct <= 101;
@@ -505,6 +545,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         );
     };
+
     const RouteTableHead = () => (
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
@@ -518,9 +559,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         </thead>
     );
+
     const emptyRow = (cols, msg) => (
         <tr><td colSpan={cols} className="text-center text-slate-400 py-8">{msg}</td></tr>
     );
+
     // --- fila / encabezado del comparativo por REGIONAL ---
     const RegionalRow = ({ s }) => {
         const over = s.pctProm > 100;
@@ -547,6 +590,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         );
     };
+
     const RegionalTableHead = () => (
         <thead className="sticky top-0 z-20">
             <tr className="text-xs uppercase text-slate-500">
@@ -560,6 +604,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             </tr>
         </thead>
     );
+
     // Preparar filas para la tabla del directorio general
     const rowsToRender = useMemo(() => {
         let rows = [];
@@ -575,6 +620,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         }
         return rows;
     }, [filteredN.base, filteredEliminados, coberturaFilter]);
+
     // --- directorio general (rutas nuevas, con Decil e Imp Total) ---
     const renderTableGeneral = () => {
         if (rowsToRender.length === 0) return emptyRow(9, 'No hay datos para mostrar con el filtro actual...');
@@ -611,6 +657,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             );
         });
     };
+
     return (
         <div className="min-h-screen bg-slate-100 font-sans p-6 overflow-x-hidden flex justify-center">
             <div className="w-full max-w-[1800px] flex flex-col gap-6">
@@ -645,6 +692,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         <Logos h={30} />
                     </div>
                 </header>
+
                 {/* KPIS (comparan cada lado según su propio filtro) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-4">
                     <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" />
@@ -661,6 +709,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" inverse />
                 </div>
+
                 {/* DOS COLUMNAS INDEPENDIENTES */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* ===== LADO IZQUIERDO: ANTERIOR ===== */}
@@ -694,6 +743,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </div>
                         </div>
                     </div>
+
                     {/* ===== LADO DERECHO: OPTIMIZADA ===== */}
                     <div className="flex flex-col gap-4">
                         <FilterBar
@@ -727,6 +777,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </div>
                     </div>
                 </div>
+
                 {/* COMPARATIVO POR REGIONAL */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[460px]">
@@ -742,6 +793,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                             </table>
                         </div>
                     </div>
+
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[460px] border-t-4 border-t-[#56D400]">
                         <div className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0">
                             <h3 className="text-lg font-bold text-slate-800">Comparativo por Regional <span className="text-[#56D400]">(Optimizado)</span></h3>
@@ -756,6 +808,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </div>
                     </div>
                 </div>
+
                 {/* PDV ELIMINADOS POR REGIONAL (base optimizada vs ids eliminados) */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[560px] border-t-4 border-t-red-400">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
@@ -816,6 +869,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         </table>
                     </div>
                 </div>
+
                 {/* DIRECTORIO GENERAL (rutas nuevas + filtro de cobertura + columnas nuevas) */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[620px]">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
@@ -861,6 +915,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         </div>
     );
 }
+
 // =============================================================
 //  TARJETA KPI
 // =============================================================
@@ -895,6 +950,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         </div>
     );
 }
+
 // =============================================================
 //  PORTADA / PANTALLA DE BIENVENIDA (con mapa de Colombia)
 // =============================================================
@@ -923,6 +979,7 @@ const PORTADA_RUTAS = [
     [0, 1],
     [0, 12, 13],
 ];
+
 function PortadaMap() {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
@@ -961,6 +1018,7 @@ function PortadaMap() {
     }, []);
     return <div ref={mapRef} className="absolute inset-0 w-full h-full" style={{ background: '#eef2f7' }} />;
 }
+
 function Portada({ onEnter, scriptsLoaded }) {
     return (
         <div className="min-h-screen relative overflow-hidden bg-slate-100 font-sans">
@@ -1046,6 +1104,7 @@ function Portada({ onEnter, scriptsLoaded }) {
         </div>
     );
 }
+
 // =============================================================
 //  RAÍZ
 // =============================================================
