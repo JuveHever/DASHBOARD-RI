@@ -43,7 +43,7 @@ const F = {
     actividad:  ['ACTIVIDAD', 'ACTIVIDAD ', 'Actividad', 'TIPO ACTIVIDAD', 'Tipo Actividad', 'ACTIVIDAD VYM'],
     pdv:        ['PUNTO DE VENTA', 'PUNTO DE VENTA ', 'Punto de Venta'],
     codigo:     ['Codigo  PDV', 'Codigo PDV', 'CODIGO PDV', 'Código PDV', 'CÓDIGO PDV', 'ID', 'Id'], // Añadido ID
-    cadena:     ['CRUCE', 'CADENA', 'SUBCADENA', 'Cadena', 'TIPO CLIENTE'], // Añadido TIPO CLIENTE
+    cadena:     ['CADENA', 'SUBCADENA', 'Cadena', 'TIPO CLIENTE'], // Añadido TIPO CLIENTE
     frecuencia: ['FRECUENCIA', 'FRECUENCIA ', 'Frecuencia'],
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
