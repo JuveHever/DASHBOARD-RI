@@ -488,6 +488,8 @@ function Dashboard({ scriptsLoaded, onHome }) {
             hrsNuevas: bN.reduce((s, r) => s + parseNum(get(r, F.hrs)), 0),
             frecViejas: bV.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
             frecNuevas: bN.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
+            // NUEVO KPI: Suma del Ponderado (solo aplica a nuevas)
+            impNuevas: bN.reduce((s, r) => s + parseNum(get(r, F.impTotal)), 0)
         };
     }, [filteredA, filteredN]);
 
@@ -694,7 +696,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 </header>
 
                 {/* KPIS (comparan cada lado según su propio filtro) */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 xl:gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 xl:gap-4">
                     <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" />
                     <KPICard title="Puntos de Venta (PDV)" valB={kpis.pdvViejas} valA={kpis.pdvNuevas} format="num" />
                     <KPICard title="Total Frecuencias (Visitas)" valB={kpis.frecViejas} valA={kpis.frecNuevas} format="num" />
@@ -708,6 +710,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valB={kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0}
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" inverse />
+                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) solo para nuevas */}
+                    <KPICard title="Ponderado (IMP TOTAL)" 
+                        valB={0} 
+                        valA={kpis.impNuevas * 100} 
+                        format="pct" />
                 </div>
 
                 {/* DOS COLUMNAS INDEPENDIENTES */}
