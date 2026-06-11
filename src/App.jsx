@@ -710,11 +710,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valB={kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0}
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" inverse />
-                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) solo para nuevas */}
+                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) solo para nuevas - AHORA SIN DECIMALES */}
                     <KPICard title="Ponderado (IMP TOTAL)" 
                         valB={0} 
                         valA={kpis.impNuevas * 100} 
-                        format="pct" />
+                        format="pct-int" />
                 </div>
 
                 {/* DOS COLUMNAS INDEPENDIENTES */}
@@ -932,6 +932,7 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         if (format === 'num') return Math.round(v).toLocaleString();
         if (format === 'hrs') return v.toFixed(1) + 'h';
         if (format === 'pct') return v.toFixed(1) + '%';
+        if (format === 'pct-int') return Math.round(v) + '%'; // <- NUEVO FORMATO PARA PORCENTAJE REDONDEADO
         return String(v);
     };
     let deltaStr = '-', isGood = false, isNeutral = true;
