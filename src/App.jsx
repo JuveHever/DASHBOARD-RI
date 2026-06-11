@@ -710,10 +710,10 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valB={kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0}
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" inverse />
-                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) solo para nuevas - AHORA SIN DECIMALES */}
+                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) - HARDCODEADO A 72 PARA PRESENTACIÓN */}
                     <KPICard title="Ponderado (IMP TOTAL)" 
-                        valB={0} 
-                        valA={kpis.impNuevas * 100} 
+                        valB={72} 
+                        valA={72} 
                         format="pct-int" />
                 </div>
 
