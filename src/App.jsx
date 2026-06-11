@@ -516,6 +516,67 @@ function Dashboard({ scriptsLoaded, onHome }) {
         );
     }, [eliminadosPorRegional]);
 
+    // --- Exportar a Excel ---
+    const handleExportKPI = (title, valB, valA) => {
+        if (!window.XLSX) {
+            alert("La librería de Excel aún no ha cargado.");
+            return;
+        }
+        const wb = window.XLSX.utils.book_new();
+        const delta = valB ? ((valA - valB) / valB) : 0;
+        const data = [
+            ['Indicador', 'Propuesta Anterior', 'Propuesta Optimizada', 'Variación (%)'],
+            [title, valB, valA, delta * 100]
+        ];
+        const ws = window.XLSX.utils.aoa_to_sheet(data);
+        window.XLSX.utils.book_append_sheet(wb, ws, "KPI Individual");
+        window.XLSX.writeFile(wb, `KPI_${title.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+    };
+
+    const handleExportAll = () => {
+        if (!window.XLSX) {
+            alert("La librería de Excel aún no ha cargado.");
+            return;
+        }
+        const wb = window.XLSX.utils.book_new();
+
+        const ocupB = kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0;
+        const ocupA = kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0;
+        const promDespB = kpis.cuposViejas ? kpis.despViejas / kpis.cuposViejas : 0;
+        const promDespA = kpis.cuposNuevas ? kpis.despNuevas / kpis.cuposNuevas : 0;
+
+        const kpiData = [
+            ['Resumen de Indicadores Clave (KPIs) - Haleon'],
+            [],
+            ['Indicador', 'Propuesta Anterior', 'Propuesta Optimizada', 'Variación (%)'],
+            ['Total Hrs Servicio (Mes)', kpis.hrsViejas, kpis.hrsNuevas, kpis.hrsViejas ? ((kpis.hrsNuevas - kpis.hrsViejas)/kpis.hrsViejas)*100 : 0],
+            ['Puntos de Venta (PDV)', kpis.pdvViejas, kpis.pdvNuevas, kpis.pdvViejas ? ((kpis.pdvNuevas - kpis.pdvViejas)/kpis.pdvViejas)*100 : 0],
+            ['Total Frecuencias (Visitas)', kpis.frecViejas, kpis.frecNuevas, kpis.frecViejas ? ((kpis.frecNuevas - kpis.frecViejas)/kpis.frecViejas)*100 : 0],
+            ['Tiempo Desplazamiento', kpis.despViejas, kpis.despNuevas, kpis.despViejas ? ((kpis.despNuevas - kpis.despViejas)/kpis.despViejas)*100 : 0],
+            ['Cupos Requeridos (Rutas)', kpis.cuposViejas, kpis.cuposNuevas, kpis.cuposViejas ? ((kpis.cuposNuevas - kpis.cuposViejas)/kpis.cuposViejas)*100 : 0],
+            ['Prom. Desplaz. x Cupo', promDespB, promDespA, promDespB ? ((promDespA - promDespB)/promDespB)*100 : 0],
+            ['Ocupación Laboral Promedio (%)', ocupB, ocupA, ocupB ? ((ocupA - ocupB)/ocupB)*100 : 0],
+            ['Ponderado (IMP TOTAL) (%)', 72, 72, 0]
+        ];
+
+        const wsKpi = window.XLSX.utils.aoa_to_sheet(kpiData);
+        window.XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen KPIs");
+
+        // Añadir tablas resumen de rutas
+        const formatRuta = (s) => ({
+            'Ruta / Usuario': s.ruta, 'PDV': s.pdv, 'Frecuencia': s.frec,
+            'Hrs Servicio': s.hrsServ, 'Hrs Desplazamiento': s.desp,
+            'Total Hrs': s.total, 'Ocupación (168h) %': s.pct
+        });
+        const wsRutasNuevas = window.XLSX.utils.json_to_sheet(summaryNuevas.map(formatRuta));
+        window.XLSX.utils.book_append_sheet(wb, wsRutasNuevas, "Rutas Optimizada");
+
+        const wsRutasViejas = window.XLSX.utils.json_to_sheet(summaryViejas.map(formatRuta));
+        window.XLSX.utils.book_append_sheet(wb, wsRutasViejas, "Rutas Anterior");
+
+        window.XLSX.writeFile(wb, "Reporte_General_Dashboard.xlsx");
+    };
+
     // --- fila de tabla de resumen por ruta (compartida) ---
     const RouteRow = ({ s }) => {
         const isGreen = s.pct >= 98 && s.pct <= 101;
@@ -695,26 +756,42 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     </div>
                 </header>
 
+                {/* HEADER KPIs + BOTON EXCEL GENERAL */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mt-2 mb-1">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Indicadores Clave</h2>
+                        <p className="text-sm text-slate-500 mt-1">Pasa el ratón sobre cada KPI para descargarlo individualmente.</p>
+                    </div>
+                    <button
+                        onClick={handleExportAll}
+                        disabled={!scriptsLoaded || isLoading}
+                        className="px-6 py-3 rounded-xl bg-slate-800 text-white font-extrabold text-sm shadow-lg hover:bg-slate-700 hover:scale-105 hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                    >
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Descargar Todo (General)
+                    </button>
+                </div>
+
                 {/* KPIS (comparan cada lado según su propio filtro) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 xl:gap-4">
-                    <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" />
-                    <KPICard title="Puntos de Venta (PDV)" valB={kpis.pdvViejas} valA={kpis.pdvNuevas} format="num" />
-                    <KPICard title="Total Frecuencias (Visitas)" valB={kpis.frecViejas} valA={kpis.frecNuevas} format="num" />
-                    <KPICard title="Tiempo Desplazamiento" valB={kpis.despViejas} valA={kpis.despNuevas} format="hrs" inverse />
-                    <KPICard title="Cupos Requeridos (Rutas)" valB={kpis.cuposViejas} valA={kpis.cuposNuevas} format="num" inverse />
+                    <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" onDownload={() => handleExportKPI("Total Hrs Servicio", kpis.hrsViejas, kpis.hrsNuevas)} />
+                    <KPICard title="Puntos de Venta (PDV)" valB={kpis.pdvViejas} valA={kpis.pdvNuevas} format="num" onDownload={() => handleExportKPI("Puntos de Venta", kpis.pdvViejas, kpis.pdvNuevas)} />
+                    <KPICard title="Total Frecuencias (Visitas)" valB={kpis.frecViejas} valA={kpis.frecNuevas} format="num" onDownload={() => handleExportKPI("Frecuencias", kpis.frecViejas, kpis.frecNuevas)} />
+                    <KPICard title="Tiempo Desplazamiento" valB={kpis.despViejas} valA={kpis.despNuevas} format="hrs" inverse onDownload={() => handleExportKPI("Tiempo Desplazamiento", kpis.despViejas, kpis.despNuevas)} />
+                    <KPICard title="Cupos Requeridos (Rutas)" valB={kpis.cuposViejas} valA={kpis.cuposNuevas} format="num" inverse onDownload={() => handleExportKPI("Cupos Requeridos", kpis.cuposViejas, kpis.cuposNuevas)} />
                     <KPICard title="Prom. Desplaz. x Cupo"
                         valB={kpis.cuposViejas ? kpis.despViejas / kpis.cuposViejas : 0}
                         valA={kpis.cuposNuevas ? kpis.despNuevas / kpis.cuposNuevas : 0}
-                        format="hrs" inverse />
+                        format="hrs" inverse onDownload={() => handleExportKPI("Prom. Desplaz x Cupo", kpis.cuposViejas ? kpis.despViejas / kpis.cuposViejas : 0, kpis.cuposNuevas ? kpis.despNuevas / kpis.cuposNuevas : 0)} />
                     <KPICard title="Ocupación Laboral Promedio"
                         valB={kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0}
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
-                        format="pct" inverse />
-                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) - HARDCODEADO A 72 PARA PRESENTACIÓN */}
+                        format="pct" inverse onDownload={() => handleExportKPI("Ocupacion Promedio", kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0, kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0)} />
+                    {/* NUEVO KPI AÑADIDO: Ponderado (IMP TOTAL) con valores fijos para presentación */}
                     <KPICard title="Ponderado (IMP TOTAL)" 
                         valB={72} 
                         valA={72} 
-                        format="pct-int" />
+                        format="pct-int" onDownload={() => handleExportKPI("Ponderado", 72, 72)} />
                 </div>
 
                 {/* DOS COLUMNAS INDEPENDIENTES */}
@@ -926,7 +1003,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
 // =============================================================
 //  TARJETA KPI
 // =============================================================
-function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
+function KPICard({ title, valB, valA, format = 'num', inverse = false, onDownload }) {
     const formatVal = (v) => {
         if (typeof v !== 'number' || isNaN(v)) return '0';
         if (format === 'num') return Math.round(v).toLocaleString();
@@ -943,8 +1020,15 @@ function KPICard({ title, valB, valA, format = 'num', inverse = false }) {
         isGood = inverse ? delta < 0 : delta > 0;
     }
     return (
-        <div className="bg-white rounded-2xl p-4 xl:p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow overflow-hidden w-full">
-            <h4 className="text-[10px] xl:text-xs font-bold text-slate-500 uppercase tracking-wide min-h-[2.5rem] leading-tight mb-2 line-clamp-2">{title}</h4>
+        <div className="bg-white rounded-2xl p-4 xl:p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow overflow-hidden w-full relative group">
+            <div className="flex justify-between items-start mb-2 gap-2">
+                <h4 className="text-[10px] xl:text-xs font-bold text-slate-500 uppercase tracking-wide min-h-[2.5rem] leading-tight line-clamp-2 flex-1">{title}</h4>
+                {onDownload && (
+                    <button onClick={onDownload} title={`Descargar detalle de ${title}`} className="p-1.5 rounded-lg text-slate-400 hover:text-[#56D400] hover:bg-[#56D400]/10 opacity-0 group-hover:opacity-100 transition-all shrink-0 -mt-1 -mr-1">
+                        <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </button>
+                )}
+            </div>
             <div className="flex justify-between items-end gap-2">
                 <div className="flex flex-col min-w-0 flex-1">
                     <span className="text-xs xl:text-sm font-semibold text-slate-400 line-through mb-1 truncate">{formatVal(valB)}</span>
