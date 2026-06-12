@@ -48,13 +48,22 @@ const F = {
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
     decil:      ['DECIL', 'Decil', 'decil'],
-    impTotal:   ['IMP TOTAL', 'Imp Total', 'IMP', 'IMPORTE TOTAL', 'Imp total'],
+    impTotal:   ['IMP TOTAL', 'Imp Total', 'IMP', 'IMPORTE TOTAL', 'Imp total', 'IMPORTE', 'PONDERADO'],
 };
 
 const get = (row, keys) => {
     if (!row) return undefined;
+    const rowKeys = Object.keys(row);
     for (const k of keys) {
-        if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return row[k];
+        // Limpiamos de espacios dobles y bordes tanto la llave buscada como la de Excel
+        const target = k.trim().toUpperCase().replace(/\s+/g, ' ');
+        const foundKey = rowKeys.find(rk => rk.trim().toUpperCase().replace(/\s+/g, ' ') === target);
+        if (foundKey) {
+            const val = row[foundKey];
+            if (val !== undefined && val !== null && String(val).trim() !== '') {
+                return val;
+            }
+        }
     }
     return undefined;
 };
@@ -375,10 +384,16 @@ function Dashboard({ scriptsLoaded, onHome }) {
             let sd = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
             if (!sd.length) return;
 
-            // CORRECCIÓN: Filtramos las filas fantasma vacías que suele añadir el lector de Excel
-            // Esto asegura que "Total Registros" sea el conteo REAL de Puntos de Venta.
+            // CORRECCIÓN: Filtramos las filas fantasma vacías y filas de "TOTALES"
+            // Esto asegura que "Total Registros" sea el conteo EXACTO de la base de datos.
             sd = sd.filter(row => {
-                return get(row, F.pdv) || get(row, F.codigo) || get(row, F.ruta) || get(row, F.ciudad) || get(row, F.regional);
+                const vals = Object.values(row).map(v => String(v).trim().toUpperCase());
+                // Excluir filas de totalizadores que a veces trae Excel al final
+                if (vals.some(v => v === 'TOTAL' || v === 'TOTALES' || v.startsWith('TOTAL '))) {
+                    return false;
+                }
+                // Requiere que la fila tenga código, pdv o ruta (no esté vacía)
+                return get(row, F.pdv) || get(row, F.codigo) || get(row, F.ruta);
             });
             if (!sd.length) return;
 
@@ -516,6 +531,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
         return Object.values(regs).sort((a,b) => a.reg.localeCompare(b.reg));
     }, [regionalViejas, regionalNuevas]);
 
+    // --- comparativo de PDV eliminados por regional (base nueva vs eliminados) ---
     const eliminadosPorRegional = useMemo(
         () => computeEliminadosPorRegional(filteredN.base, filteredEliminados),
         [filteredN.base, filteredEliminados]
@@ -615,7 +631,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             [],
             ['Indicador', 'Propuesta Anterior', 'Propuesta Optimizada', 'Variación (%)'],
             ['Total Hrs Servicio (Mes)', kpis.hrsViejas, kpis.hrsNuevas, kpis.hrsViejas ? ((kpis.hrsNuevas - kpis.hrsViejas)/kpis.hrsViejas)*100 : 0],
-            ['Puntos de Venta (PDV)', kpis.pdvViejas, kpis.pdvNuevas, kpis.pdvViejas ? ((kpis.pdvNuevas - kpis.pdvViejas)/kpis.pdvViejas)*100 : 0],
+            ['Total Registros (PDV)', kpis.pdvViejas, kpis.pdvNuevas, kpis.pdvViejas ? ((kpis.pdvNuevas - kpis.pdvViejas)/kpis.pdvViejas)*100 : 0],
             ['Total Frecuencias (Visitas)', kpis.frecViejas, kpis.frecNuevas, kpis.frecViejas ? ((kpis.frecNuevas - kpis.frecViejas)/kpis.frecViejas)*100 : 0],
             ['Tiempo Desplazamiento', kpis.despViejas, kpis.despNuevas, kpis.despViejas ? ((kpis.despNuevas - kpis.despViejas)/kpis.despViejas)*100 : 0],
             ['Cupos Requeridos (Rutas)', kpis.cuposViejas, kpis.cuposNuevas, kpis.cuposViejas ? ((kpis.cuposNuevas - kpis.cuposViejas)/kpis.cuposViejas)*100 : 0],
@@ -638,7 +654,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 'Desplazamiento Anterior', 'Desplazamiento Optimizado', 'Var Desp %',
                 'Cupos Anterior', 'Cupos Optimizado', 'Var Cupos %',
                 'Ocupación Anterior %', 'Ocupación Optimizado %', 'Var Ocupación %',
-                'Ponderado Anterior (IMP TOTAL)', 'Ponderado Optimizado (IMP TOTAL)'
+                'Ponderado Anterior', 'Ponderado Optimizado'
             ]
         ];
 
@@ -873,7 +889,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 {/* KPIS (comparan cada lado según su propio filtro) */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 xl:gap-4">
                     <KPICard title="Total Hrs Servicio (Mes)" valB={kpis.hrsViejas} valA={kpis.hrsNuevas} format="hrs" onDownload={() => handleExportKPI("hrs", "Total_Hrs_Servicio")} />
-                    <KPICard title="Puntos de Venta (PDV)" valB={kpis.pdvViejas} valA={kpis.pdvNuevas} format="num" onDownload={() => handleExportKPI("pdv", "Puntos_de_Venta")} />
+                    <KPICard title="Total Registros (PDV)" valB={kpis.pdvViejas} valA={kpis.pdvNuevas} format="num" onDownload={() => handleExportKPI("pdv", "Total_Registros")} />
                     <KPICard title="Total Frecuencias (Visitas)" valB={kpis.frecViejas} valA={kpis.frecNuevas} format="num" onDownload={() => handleExportKPI("frec", "Frecuencias")} />
                     <KPICard title="Tiempo Desplazamiento" valB={kpis.despViejas} valA={kpis.despNuevas} format="hrs" inverse onDownload={() => handleExportKPI("desp", "Tiempo_Desplazamiento")} />
                     <KPICard title="Cupos Requeridos (Rutas)" valB={kpis.cuposViejas} valA={kpis.cuposNuevas} format="num" inverse onDownload={() => handleExportKPI("cupos", "Cupos_Requeridos")} />
@@ -885,7 +901,6 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valB={kpis.cuposViejas ? ((kpis.hrsViejas + kpis.despViejas) / (kpis.cuposViejas * 168)) * 100 : 0}
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" inverse onDownload={() => handleExportKPI("ocup", "Ocupacion_Promedio")} />
-                    {/* PONDERADO: Ahora suma la columna de IMP TOTAL y aproxima el resultado */}
                     <KPICard title="Ponderado (IMP TOTAL)" 
                         valB={Math.round(kpis.impViejas)} 
                         valA={Math.round(kpis.impNuevas)} 
