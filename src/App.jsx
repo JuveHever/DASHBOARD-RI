@@ -42,8 +42,8 @@ const F = {
     supervisor: ['SUPERVISOR', 'NOMBRE SUPERVISOR ', 'NOMBRE SUPERVISOR', 'USUARIO SUPERVISOR', 'Supervisor'],
     actividad:  ['ACTIVIDAD', 'ACTIVIDAD ', 'Actividad', 'TIPO ACTIVIDAD', 'Tipo Actividad', 'ACTIVIDAD VYM'],
     pdv:        ['PUNTO DE VENTA', 'PUNTO DE VENTA ', 'Punto de Venta'],
-    codigo:     ['Codigo  PDV', 'Codigo PDV', 'CODIGO PDV', 'Código PDV', 'CÓDIGO PDV', 'ID', 'Id'], // Añadido ID
-    cadena:     ['CADENA', 'SUBCADENA', 'Cadena', 'TIPO CLIENTE'], // Añadido TIPO CLIENTE
+    codigo:     ['ID', 'Id', 'Codigo  PDV', 'Codigo PDV', 'CODIGO PDV', 'Código PDV', 'CÓDIGO PDV'], // Prioridad a ID
+    cadena:     ['CADENA', 'SUBCADENA', 'Cadena', 'TIPO CLIENTE'], 
     frecuencia: ['FRECUENCIA', 'FRECUENCIA ', 'Frecuencia'],
     hrs:        ['TOTAL HRS B', 'Total Hrs B', 'HRS B', 'HRS', 'Hrs'],
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
@@ -136,7 +136,13 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
         if (!r) return;
         if (!grouped[r]) grouped[r] = { hrsServ: 0, desp: 0, pdv: 0, frec: 0 };
         grouped[r].hrsServ += parseNum(get(row, F.hrs));
-        grouped[r].pdv += 1;
+        
+        // CONTEO MEDIANTE COLUMNA ID (Evita sumar vacíos)
+        const idVal = get(row, F.codigo);
+        if (idVal !== undefined && String(idVal).trim() !== '') {
+            grouped[r].pdv += 1;
+        }
+
         grouped[r].frec += parseIntSafe(get(row, F.frecuencia));
     });
     const despSource = (despRows && despRows.length) ? despRows : baseRows;
@@ -158,7 +164,6 @@ const computeRouteSummary = (baseRows, despRows, colorMap) => {
 const computeRegionalSummary = (baseRows, despRows) => {
     const grouped = {};
     const ensure = (reg) => {
-        // Se añade .imp para llevar la cuenta del IMPORTE TOTAL sumado por regional
         if (!grouped[reg]) grouped[reg] = { hrsServ: 0, desp: 0, pdv: 0, frec: 0, imp: 0, rutas: new Set() };
         return grouped[reg];
     };
@@ -167,9 +172,15 @@ const computeRegionalSummary = (baseRows, despRows) => {
         const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
         const g = ensure(reg);
         g.hrsServ += parseNum(get(row, F.hrs));
-        g.pdv += 1;
+        
+        // CONTEO MEDIANTE COLUMNA ID (Evita sumar vacíos)
+        const idVal = get(row, F.codigo);
+        if (idVal !== undefined && String(idVal).trim() !== '') {
+            g.pdv += 1;
+        }
+        
         g.frec += parseIntSafe(get(row, F.frecuencia));
-        g.imp += parseNum(get(row, F.impTotal)); // Suma real de la columna IMP
+        g.imp += parseNum(get(row, F.impTotal)); 
         const r = norm(get(row, F.ruta));
         if (r) { g.rutas.add(r); routeToReg[r] = reg; }
     });
@@ -201,12 +212,18 @@ const computeEliminadosPorRegional = (baseNuevas, eliminados) => {
         return grouped[reg];
     };
     (baseNuevas || []).forEach((row) => {
-        const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
-        ensure(reg).cubiertos += 1;
+        const idVal = get(row, F.codigo);
+        if (idVal !== undefined && String(idVal).trim() !== '') {
+            const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
+            ensure(reg).cubiertos += 1;
+        }
     });
     (eliminados || []).forEach((row) => {
-        const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
-        ensure(reg).eliminados += 1;
+        const idVal = get(row, F.codigo);
+        if (idVal !== undefined && String(idVal).trim() !== '') {
+            const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
+            ensure(reg).eliminados += 1;
+        }
     });
     return Object.entries(grouped)
         .map(([reg, v]) => {
@@ -385,14 +402,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
             if (!sd.length) return;
 
             // CORRECCIÓN: Filtramos las filas fantasma vacías y filas de "TOTALES"
-            // Esto asegura que "Total Registros" sea el conteo EXACTO de la base de datos.
             sd = sd.filter(row => {
                 const vals = Object.values(row).map(v => String(v).trim().toUpperCase());
-                // Excluir filas de totalizadores que a veces trae Excel al final
                 if (vals.some(v => v === 'TOTAL' || v === 'TOTALES' || v.startsWith('TOTAL '))) {
                     return false;
                 }
-                // Requiere que la fila tenga código, pdv o ruta (no esté vacía)
                 return get(row, F.pdv) || get(row, F.codigo) || get(row, F.ruta);
             });
             if (!sd.length) return;
@@ -492,8 +506,16 @@ function Dashboard({ scriptsLoaded, onHome }) {
         const bV = filteredA.base, dV = filteredA.desp, bN = filteredN.base, dN = filteredN.desp;
         const despSrcV = dV.length ? dV : bV;
         const despSrcN = dN.length ? dN : bN;
+        
+        // CONTEO MEDIANTE COLUMNA ID: Filtra y contabiliza solo los registros que tienen un valor válido en ID
+        const countPDV = (rows) => rows.filter(r => {
+            const id = get(r, F.codigo);
+            return id !== undefined && String(id).trim() !== '';
+        }).length;
+
         return {
-            pdvViejas: bV.length, pdvNuevas: bN.length,
+            pdvViejas: countPDV(bV),
+            pdvNuevas: countPDV(bN),
             cuposViejas: new Set(bV.map((r) => get(r, F.ruta)).filter(Boolean)).size,
             cuposNuevas: new Set(bN.map((r) => get(r, F.ruta)).filter(Boolean)).size,
             despViejas: despSrcV.reduce((s, r) => s + parseNum(get(r, F.desp)), 0),
@@ -502,7 +524,6 @@ function Dashboard({ scriptsLoaded, onHome }) {
             hrsNuevas: bN.reduce((s, r) => s + parseNum(get(r, F.hrs)), 0),
             frecViejas: bV.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
             frecNuevas: bN.reduce((s, r) => s + parseIntSafe(get(r, F.frecuencia)), 0),
-            // CORRECCIÓN: Sumatoria real de IMP TOTAL (Ponderado)
             impViejas: bV.reduce((s, r) => s + parseNum(get(r, F.impTotal)), 0),
             impNuevas: bN.reduce((s, r) => s + parseNum(get(r, F.impTotal)), 0)
         };
@@ -578,7 +599,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 valA = r.cuposA ? ((r.hrsA + r.despA) / (r.cuposA * 168)) * 100 : 0;
             }
             else if (kpiId === 'pond') {
-                valB = Math.round(r.impB); valA = Math.round(r.impA);
+                valB = Math.round(r.impB * 100); valA = Math.round(r.impA * 100);
             }
 
             const delta = valB ? ((valA - valB) / valB) * 100 : 0;
@@ -601,7 +622,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             gA = kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0;
         }
         else if (kpiId === 'pond') {
-            gB = Math.round(kpis.impViejas); gA = Math.round(kpis.impNuevas);
+            gB = Math.round(kpis.impViejas * 100); gA = Math.round(kpis.impNuevas * 100);
         }
 
         data.push([]);
@@ -637,7 +658,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
             ['Cupos Requeridos (Rutas)', kpis.cuposViejas, kpis.cuposNuevas, kpis.cuposViejas ? ((kpis.cuposNuevas - kpis.cuposViejas)/kpis.cuposViejas)*100 : 0],
             ['Prom. Desplaz. x Cupo', promDespB, promDespA, promDespB ? ((promDespA - promDespB)/promDespB)*100 : 0],
             ['Ocupación Laboral Promedio (%)', ocupB, ocupA, ocupB ? ((ocupA - ocupB)/ocupB)*100 : 0],
-            ['Ponderado (IMP TOTAL)', Math.round(kpis.impViejas), Math.round(kpis.impNuevas), kpis.impViejas ? ((kpis.impNuevas - kpis.impViejas)/kpis.impViejas)*100 : 0]
+            ['Ponderado (IMP TOTAL)', Math.round(kpis.impViejas * 100), Math.round(kpis.impNuevas * 100), kpis.impViejas ? ((kpis.impNuevas - kpis.impViejas)/kpis.impViejas)*100 : 0]
         ];
         const wsKpi = window.XLSX.utils.aoa_to_sheet(kpiData);
         window.XLSX.utils.book_append_sheet(wb, wsKpi, "Resumen Global");
@@ -670,7 +691,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 r.despB, r.despA, d(r.despA, r.despB),
                 r.cuposB, r.cuposA, d(r.cuposA, r.cuposB),
                 ocB, ocA, d(ocA, ocB),
-                Math.round(r.impB), Math.round(r.impA)
+                Math.round(r.impB * 100), Math.round(r.impA * 100)
             ]);
         });
         const wsReg = window.XLSX.utils.aoa_to_sheet(dataReg);
@@ -902,9 +923,9 @@ function Dashboard({ scriptsLoaded, onHome }) {
                         valA={kpis.cuposNuevas ? ((kpis.hrsNuevas + kpis.despNuevas) / (kpis.cuposNuevas * 168)) * 100 : 0}
                         format="pct" inverse onDownload={() => handleExportKPI("ocup", "Ocupacion_Promedio")} />
                     <KPICard title="Ponderado (IMP TOTAL)" 
-                        valB={Math.round(kpis.impViejas)} 
-                        valA={Math.round(kpis.impNuevas)} 
-                        format="num" onDownload={() => handleExportKPI("pond", "Ponderado")} />
+                        valB={kpis.impViejas * 100} 
+                        valA={kpis.impNuevas * 100} 
+                        format="pct-int" onDownload={() => handleExportKPI("pond", "Ponderado")} />
                 </div>
 
                 {/* DOS COLUMNAS INDEPENDIENTES */}
