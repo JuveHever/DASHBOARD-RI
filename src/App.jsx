@@ -49,6 +49,7 @@ const F = {
     desp:       ['DESPLAZAMIENTO', 'TOTAL TIEMPO DEZPLASAMIENTO', 'TOTAL TIEMPO DESPLAZAMIENTO', 'TIEMPO DESPLAZAMIENTO', 'Desplazamiento'],
     decil:      ['DECIL', 'Decil', 'decil'],
     impTotal:   ['IMP TOTAL', 'Imp Total', 'IMP', 'IMPORTE TOTAL', 'Imp total', 'IMPORTE', 'PONDERADO'],
+    nuevo:      ['NUEVO', 'Nuevo', 'nuevo', 'ES NUEVO'] // Columna para identificar PDVs adicionales
 };
 
 const get = (row, keys) => {
@@ -208,16 +209,26 @@ const computeRegionalSummary = (baseRows, despRows) => {
 const computeEliminadosPorRegional = (baseNuevas, eliminados) => {
     const grouped = {};
     const ensure = (reg) => {
-        if (!grouped[reg]) grouped[reg] = { cubiertos: 0, eliminados: 0 };
+        if (!grouped[reg]) grouped[reg] = { cubiertosOriginales: 0, adicionales: 0, eliminados: 0 };
         return grouped[reg];
     };
+    
+    // Analizamos la base optimizada
     (baseNuevas || []).forEach((row) => {
         const idVal = get(row, F.codigo);
         if (idVal !== undefined && String(idVal).trim() !== '') {
             const reg = String(get(row, F.regional) ?? '').trim() || 'Sin Regional';
-            ensure(reg).cubiertos += 1;
+            const isNuevo = String(get(row, F.nuevo) ?? '').trim().toUpperCase() === 'SI';
+            
+            if (isNuevo) {
+                ensure(reg).adicionales += 1; // Si "NUEVO" = "SI", es PDV adicional
+            } else {
+                ensure(reg).cubiertosOriginales += 1; // Si "NUEVO" = "NO" o vacío, es un PDV original mantenido
+            }
         }
     });
+    
+    // Analizamos los eliminados
     (eliminados || []).forEach((row) => {
         const idVal = get(row, F.codigo);
         if (idVal !== undefined && String(idVal).trim() !== '') {
@@ -225,12 +236,17 @@ const computeEliminadosPorRegional = (baseNuevas, eliminados) => {
             ensure(reg).eliminados += 1;
         }
     });
+    
     return Object.entries(grouped)
         .map(([reg, v]) => {
-            const original = v.cubiertos + v.eliminados;
+            // El Total Original solo tiene en cuenta los cubiertos originales + eliminados (ignora los adicionales)
+            const original = v.cubiertosOriginales + v.eliminados;
+            const cubiertosTotales = v.cubiertosOriginales + v.adicionales;
+            
             return {
                 reg,
-                cubiertos: v.cubiertos,
+                cubiertos: cubiertosTotales, // Total de PDV cubiertos por esta regional (originales mantenidos + adicionales)
+                adicionales: v.adicionales,
                 eliminados: v.eliminados,
                 original,
                 pctElim: original > 0 ? (v.eliminados / original) * 100 : 0,
@@ -562,11 +578,12 @@ function Dashboard({ scriptsLoaded, onHome }) {
         return eliminadosPorRegional.reduce(
             (acc, r) => {
                 acc.cubiertos += r.cubiertos;
+                acc.adicionales += r.adicionales;
                 acc.eliminados += r.eliminados;
                 acc.original += r.original;
                 return acc;
             },
-            { cubiertos: 0, eliminados: 0, original: 0 }
+            { cubiertos: 0, adicionales: 0, eliminados: 0, original: 0 }
         );
     }, [eliminadosPorRegional]);
 
@@ -1032,7 +1049,8 @@ function Dashboard({ scriptsLoaded, onHome }) {
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
                         <h3 className="text-xl font-bold text-slate-800">Puntos de Venta Eliminados por Regional</h3>
                         <p className="text-sm text-slate-500 mt-1">
-                            Comparación de la base optimizada (cubiertos) vs. los PDV eliminados, agrupados por <span className="font-semibold text-slate-700">REGIONAL VYM</span>. Responde a los filtros de la propuesta optimizada.
+                            Comparación de la base optimizada vs. los PDV eliminados, agrupados por <span className="font-semibold text-slate-700">REGIONAL VYM</span>. 
+                            Diferencia entre originales mantenidos y puntos nuevos/adicionales.
                         </p>
                     </div>
                     <div className="overflow-y-auto flex-1 px-6 pb-4">
@@ -1041,14 +1059,15 @@ function Dashboard({ scriptsLoaded, onHome }) {
                                 <tr className="text-xs uppercase text-slate-500">
                                     <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200">Regional</th>
                                     <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">PDV Cubiertos</th>
+                                    <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">PDVs Adicionales</th>
                                     <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">PDV Eliminados</th>
-                                    <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">Total Original</th>
+                                    <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 text-center whitespace-nowrap">PDVs Originales</th>
                                     <th className="p-3 font-semibold bg-slate-100 border-b border-slate-200 whitespace-nowrap">% Eliminado</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {eliminadosPorRegional.length === 0
-                                    ? emptyRow(5, 'No hay hoja de eliminados cargada o no hay datos con el filtro actual...')
+                                    ? emptyRow(6, 'No hay hoja de eliminados cargada o no hay datos con el filtro actual...')
                                     : eliminadosPorRegional.map((s) => {
                                         const high = s.pctElim > 30;
                                         const mid = s.pctElim > 15 && s.pctElim <= 30;
@@ -1057,6 +1076,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                                             <tr key={s.reg} className="border-b border-slate-100 hover:bg-slate-50">
                                                 <td className="p-3 text-sm font-medium text-slate-800">{s.reg}</td>
                                                 <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.cubiertos.toLocaleString()}</td>
+                                                <td className="p-3 text-sm text-center text-emerald-600 font-bold whitespace-nowrap">+{s.adicionales.toLocaleString()}</td>
                                                 <td className="p-3 text-sm text-center font-bold text-red-600 whitespace-nowrap">{s.eliminados.toLocaleString()}</td>
                                                 <td className="p-3 text-sm text-center text-slate-600 whitespace-nowrap">{s.original.toLocaleString()}</td>
                                                 <td className="p-3 text-sm">
@@ -1076,6 +1096,7 @@ function Dashboard({ scriptsLoaded, onHome }) {
                                     <tr className="bg-slate-50 font-bold text-slate-800">
                                         <td className="p-3 text-sm border-t-2 border-slate-300">TOTAL</td>
                                         <td className="p-3 text-sm text-center border-t-2 border-slate-300 whitespace-nowrap">{totalesElim.cubiertos.toLocaleString()}</td>
+                                        <td className="p-3 text-sm text-center text-emerald-600 border-t-2 border-slate-300 whitespace-nowrap">+{totalesElim.adicionales.toLocaleString()}</td>
                                         <td className="p-3 text-sm text-center text-red-600 border-t-2 border-slate-300 whitespace-nowrap">{totalesElim.eliminados.toLocaleString()}</td>
                                         <td className="p-3 text-sm text-center border-t-2 border-slate-300 whitespace-nowrap">{totalesElim.original.toLocaleString()}</td>
                                         <td className="p-3 text-sm border-t-2 border-slate-300 whitespace-nowrap">
