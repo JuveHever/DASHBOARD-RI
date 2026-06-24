@@ -410,8 +410,6 @@ function Dashboard({ scriptsLoaded, onHome }) {
     
     // Estados para los nuevos filtros del directorio
     const [dirDecilFilter, setDirDecilFilter] = useState('');
-    const [dirImpMin, setDirImpMin] = useState('');
-    const [dirImpMax, setDirImpMax] = useState('');
 
     // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
@@ -454,8 +452,6 @@ function Dashboard({ scriptsLoaded, onHome }) {
         setFiltersN(emptyFilters);
         setCoberturaFilter('cubiertos');
         setDirDecilFilter('');
-        setDirImpMin('');
-        setDirImpMax('');
     };
 
     // --- Auto-carga del Excel ---
@@ -865,27 +861,8 @@ function Dashboard({ scriptsLoaded, onHome }) {
             rows = rows.filter(r => norm(get(r, F.decil)) === normDecil);
         }
         
-        let minVal = NaN;
-        if (String(dirImpMin).trim() !== '') {
-            minVal = parseFloat(String(dirImpMin).trim().replace(',', '.'));
-        }
-        
-        let maxVal = NaN;
-        if (String(dirImpMax).trim() !== '') {
-            maxVal = parseFloat(String(dirImpMax).trim().replace(',', '.'));
-        }
-
-        if (!isNaN(minVal) || !isNaN(maxVal)) {
-            rows = rows.filter(r => {
-                const rowVal = parseNum(get(r, F.impTotal));
-                if (!isNaN(minVal) && rowVal < minVal) return false;
-                if (!isNaN(maxVal) && rowVal > maxVal) return false;
-                return true;
-            });
-        }
-        
         return rows;
-    }, [rowsToRender, dirDecilFilter, dirImpMin, dirImpMax]);
+    }, [rowsToRender, dirDecilFilter]);
 
     // --- directorio general ---
     const renderTableGeneral = () => {
@@ -1193,30 +1170,9 @@ function Dashboard({ scriptsLoaded, onHome }) {
                                     </select>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <label className="text-xs font-semibold text-slate-500 uppercase">Imp Total:</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Min" 
-                                        value={dirImpMin} 
-                                        onChange={e => setDirImpMin(e.target.value)} 
-                                        className="w-28 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] outline-none placeholder:text-slate-400" 
-                                        title="Ej: 0.002 o 0,002"
-                                    />
-                                    <span className="text-slate-400 font-medium">-</span>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Max" 
-                                        value={dirImpMax} 
-                                        onChange={e => setDirImpMax(e.target.value)} 
-                                        className="w-28 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] outline-none placeholder:text-slate-400" 
-                                        title="Ej: 0.005 o 0,005"
-                                    />
-                                </div>
-
-                                {(dirDecilFilter || dirImpMin || dirImpMax) && (
+                                {dirDecilFilter && (
                                     <button 
-                                        onClick={() => { setDirDecilFilter(''); setDirImpMin(''); setDirImpMax(''); }} 
+                                        onClick={() => setDirDecilFilter('')} 
                                         className="text-xs font-semibold text-slate-500 hover:text-red-500 transition-colors ml-auto flex items-center gap-1"
                                     >
                                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
