@@ -407,6 +407,11 @@ function Dashboard({ scriptsLoaded, onHome }) {
     const [filtersN, setFiltersN] = useState(emptyFilters);
  
     const [coberturaFilter, setCoberturaFilter] = useState('cubiertos'); // 'cubiertos' | 'eliminados' | 'todos'
+    
+    // Estados para los nuevos filtros del directorio
+    const [dirDecilFilter, setDirDecilFilter] = useState('');
+    const [dirImpMin, setDirImpMin] = useState('');
+    const [dirImpMax, setDirImpMax] = useState('');
 
     // --- Procesa el Excel en crudo (centralizado) ---
     const processExcelBuffer = (buffer) => {
@@ -448,6 +453,9 @@ function Dashboard({ scriptsLoaded, onHome }) {
         setFiltersA(emptyFilters);
         setFiltersN(emptyFilters);
         setCoberturaFilter('cubiertos');
+        setDirDecilFilter('');
+        setDirImpMin('');
+        setDirImpMax('');
     };
 
     // --- Auto-carga del Excel ---
@@ -836,11 +844,54 @@ function Dashboard({ scriptsLoaded, onHome }) {
         return rows;
     }, [filteredN.base, filteredEliminados, coberturaFilter]);
 
+    // Extraer opciones únicas de Decil según la data
+    const decilOptions = useMemo(() => {
+        const set = new Set();
+        rowsToRender.forEach(r => {
+            const val = get(r, F.decil);
+            if (val !== undefined && val !== null && String(val).trim() !== '') {
+                set.add(String(val).trim());
+            }
+        });
+        return [...set].sort((a, b) => String(a).localeCompare(String(b), 'es', { numeric: true }));
+    }, [rowsToRender]);
+
+    // Aplicar filtros adicionales (Decil e Imp Total) al directorio
+    const finalDirRows = useMemo(() => {
+        let rows = rowsToRender;
+        
+        if (dirDecilFilter) {
+            const normDecil = norm(dirDecilFilter);
+            rows = rows.filter(r => norm(get(r, F.decil)) === normDecil);
+        }
+        
+        let minVal = NaN;
+        if (String(dirImpMin).trim() !== '') {
+            minVal = parseFloat(String(dirImpMin).trim().replace(',', '.'));
+        }
+        
+        let maxVal = NaN;
+        if (String(dirImpMax).trim() !== '') {
+            maxVal = parseFloat(String(dirImpMax).trim().replace(',', '.'));
+        }
+
+        if (!isNaN(minVal) || !isNaN(maxVal)) {
+            rows = rows.filter(r => {
+                const rowVal = parseNum(get(r, F.impTotal));
+                if (!isNaN(minVal) && rowVal < minVal) return false;
+                if (!isNaN(maxVal) && rowVal > maxVal) return false;
+                return true;
+            });
+        }
+        
+        return rows;
+    }, [rowsToRender, dirDecilFilter, dirImpMin, dirImpMax]);
+
     // --- directorio general ---
     const renderTableGeneral = () => {
-        if (rowsToRender.length === 0) return emptyRow(9, 'No hay datos para mostrar con el filtro actual...');
+        if (finalDirRows.length === 0) return emptyRow(9, 'No hay datos para mostrar con los filtros actuales...');
  
-        return rowsToRender.slice(0, 500).map((row, idx) => {
+        return finalDirRows.slice(0, 500).map((row, idx) => {
             const rawImp = get(row, F.impTotal);
             const impFormatted = rawImp !== undefined && rawImp !== ''
                 ? new Intl.NumberFormat('es-CO', { style: 'percent', minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(parseNum(rawImp))
@@ -1112,23 +1163,70 @@ function Dashboard({ scriptsLoaded, onHome }) {
                 {/* DIRECTORIO GENERAL */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col max-h-[620px]">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0 flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
-                        <div>
+                        <div className="flex-1 w-full">
                             <h3 className="text-xl font-bold text-slate-800">Directorio de Puntos de Venta (Rutas Nuevas)</h3>
-                            <div className="flex items-center gap-3 mt-3">
-                                <label className="text-sm font-semibold text-slate-500">Estado de Cobertura:</label>
-                                <select
-                                    value={coberturaFilter}
-                                    onChange={(e) => setCoberturaFilter(e.target.value)}
-                                    className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] focus:border-[#56D400] outline-none"
-                                >
-                                    <option value="cubiertos">Cubiertos</option>
-                                    <option value="eliminados">No Cubiertos (Eliminados)</option>
-                                    <option value="todos">Todos</option>
-                                </select>
+                            
+                            {/* BARRA DE FILTROS DEL DIRECTORIO */}
+                            <div className="flex flex-wrap items-center gap-4 mt-4 bg-slate-50 border border-slate-200 p-3 rounded-xl w-full">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase">Cobertura:</label>
+                                    <select
+                                        value={coberturaFilter}
+                                        onChange={(e) => setCoberturaFilter(e.target.value)}
+                                        className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] outline-none"
+                                    >
+                                        <option value="cubiertos">Cubiertos</option>
+                                        <option value="eliminados">No Cubiertos (Eliminados)</option>
+                                        <option value="todos">Todos</option>
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase">Decil:</label>
+                                    <select
+                                        value={dirDecilFilter}
+                                        onChange={(e) => setDirDecilFilter(e.target.value)}
+                                        className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] outline-none min-w-[80px]"
+                                    >
+                                        <option value="">Todos</option>
+                                        {decilOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase">Imp Total:</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Min" 
+                                        value={dirImpMin} 
+                                        onChange={e => setDirImpMin(e.target.value)} 
+                                        className="w-28 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] outline-none placeholder:text-slate-400" 
+                                        title="Ej: 0.002 o 0,002"
+                                    />
+                                    <span className="text-slate-400 font-medium">-</span>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Max" 
+                                        value={dirImpMax} 
+                                        onChange={e => setDirImpMax(e.target.value)} 
+                                        className="w-28 border border-slate-300 rounded-lg px-2 py-1.5 text-xs text-slate-700 bg-white focus:ring-2 focus:ring-[#56D400] outline-none placeholder:text-slate-400" 
+                                        title="Ej: 0.005 o 0,005"
+                                    />
+                                </div>
+
+                                {(dirDecilFilter || dirImpMin || dirImpMax) && (
+                                    <button 
+                                        onClick={() => { setDirDecilFilter(''); setDirImpMin(''); setDirImpMax(''); }} 
+                                        className="text-xs font-semibold text-slate-500 hover:text-red-500 transition-colors ml-auto flex items-center gap-1"
+                                    >
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                        Limpiar
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full whitespace-nowrap">
-                            Mostrando {Math.min(500, rowsToRender.length)} de {rowsToRender.length}
+                        <span className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full whitespace-nowrap mb-2 md:mb-0 shrink-0">
+                            Mostrando {Math.min(500, finalDirRows.length)} de {finalDirRows.length}
                         </span>
                     </div>
                     <div className="overflow-y-auto flex-1 px-6 pb-4">
